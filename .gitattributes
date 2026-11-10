@@ -1,0 +1,5 @@
+# Normalise line endings for text files; mark binaries so Git never alters them
+* text=auto
+*.jpg binary
+*.png binary
+*.FCStd binary

@@ -1,0 +1,520 @@
+<title>HC-SR04 Wiring Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one-screen workbench. 3D stage fills the left, a step-by-step instruction rail on the right; stacks on phones. */
+:root {
+  --bg: #eceff2;
+  --panel: #fbfcfd;
+  --ink: #161a1f;
+  --muted: #5a6470;
+  --line: #d5dbe2;
+  --accent: #a85a14;
+  --accent-soft: #f4e4d3;
+  --stage-a: #dde3e9;
+  --stage-b: #c9d1da;
+  --danger: #b42318;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+    --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+  --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 40% 30%, var(--stage-a), var(--stage-b)); }
+#scene { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#scene:active { cursor: grabbing; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; transform: translate(-50%, -100%); white-space: nowrap;
+  font: 700 12px/1 var(--font-mono); padding: 5px 8px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .18); display: flex; align-items: center; gap: 6px; }
+.tag i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1px solid rgb(127 127 127 / .6); }
+.tag.part { font-family: var(--font-body); font-weight: 600; font-size: 12px; }
+.hint { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 6px; opacity: .92; }
+.rail { min-width: 0; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line);
+  padding-block: 22px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px; }
+.eyebrow { font: 600 11px/1 var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 26px/1.12 var(--font-display); margin: 8px 0 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 600 13px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+.card .count { font: 500 12px/1 var(--font-mono); color: var(--muted); }
+.card h3 { margin: 0; font: 700 20px/1.2 var(--font-display); display: flex; align-items: center; gap: 10px; }
+.card h3 .sw { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1px solid rgb(127 127 127 / .6); }
+.card p { margin: 0; }
+.card .warn { color: var(--danger); font-weight: 500; }
+.nav { display: flex; gap: 8px; }
+button { font: 600 14px/1 var(--font-body); border-radius: 8px; padding: 10px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, .steps button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.steps button { width: 100%; text-align: left; display: grid; grid-template-columns: 22px 14px 1fr; gap: 10px; align-items: center;
+  border: 1px solid transparent; background: transparent; padding: 9px 10px; font-weight: 500; }
+.steps button:hover { background: var(--bg); }
+.steps button[aria-current="step"] { background: var(--accent-soft); border-color: var(--accent); }
+.steps .n { font: 700 12px/1 var(--font-mono); color: var(--muted); }
+.steps .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgb(127 127 127 / .6); }
+.steps .sw.none { border-style: dashed; background: transparent; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.mono { font-family: var(--font-mono); font-weight: 700; font-size: 12px; }
+td .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid rgb(127 127 127 / .6); }
+.acc ul { margin: 6px 0 12px; padding-left: 18px; }
+.acc li { margin: 3px 0; }
+.acc .ok { color: var(--ink); font-weight: 600; }
+.acc .simp { color: var(--muted); font-weight: 600; }
+.small { font-size: 13px; color: var(--muted); }
+.err { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+@media (max-width: 820px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; height: auto; }
+  html, body { height: auto; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="scene" aria-label="3D model of an ESP32 board wired to an HC-SR04 sensor"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan · click a wire</div>
+  </div>
+
+  <aside class="rail">
+    <header>
+      <div class="eyebrow">Project 1 · Distance meter</div>
+      <h1>Wire the HC-SR04 to your ESP32</h1>
+    </header>
+
+    <section class="card" aria-live="polite">
+      <div class="count" id="stepCount"></div>
+      <h3><span class="sw" id="stepSwatch"></span><span id="stepTitle"></span></h3>
+      <p id="stepBody"></p>
+      <p class="warn" id="stepWarn" hidden></p>
+      <div class="nav">
+        <button id="prev" type="button">Back</button>
+        <button id="next" type="button" class="primary">Next step</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Steps</h2>
+      <ol class="steps" id="steps"></ol>
+    </section>
+
+    <section>
+      <h2>Connections</h2>
+      <table>
+        <thead><tr><th>Wire</th><th>ESP32 pin</th><th>HC-SR04 pin</th></tr></thead>
+        <tbody id="conn"></tbody>
+      </table>
+      <p class="small">You need 4 female-to-female wires (10 cm) from your packs. Wire color doesn't matter electrically. These colors just make the guide easy to follow.</p>
+    </section>
+
+    <section class="acc">
+      <h2>How accurate is this model?</h2>
+      <span class="ok">Matches your hardware</span>
+      <ul>
+        <li>Pin order and pin names on both boards, copied from your photos.</li>
+        <li>Pin spacing of 2.54 mm, and the 25.4 mm gap between the ESP32's two pin rows.</li>
+        <li>Board and sensor sizes, within about 1 mm.</li>
+        <li>Positions of the USB-C port, EN and BOOT buttons, and the PWR and D2 LEDs.</li>
+      </ul>
+      <span class="simp">Simplified</span>
+      <ul>
+        <li>Tiny parts (resistors, capacitors) are plain blocks.</li>
+        <li>Board text is printed sideways on the real boards; here it is turned to read easily.</li>
+        <li>Wires are drawn neatly. Real 10 cm wires loop and drape.</li>
+        <li>The ESP32's pins point down, so the wire plugs go on from underneath. On your desk the board will rest on those plugs. The HC-SR04 lies on its back with its "eyes" facing up.</li>
+      </ul>
+    </section>
+  </aside>
+</div>
+
+<!-- Three.js r128, stored locally in ./lib so the page works offline -->
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+(function () {
+  const LEFT  = ["EN","VP","VN","D34","D35","D32","D33","D25","D26","D27","D14","D12","D13","GND","VIN"];
+  const RIGHT = ["D23","D22","TX0","RX0","D21","D19","D18","D5","D17","D16","D4","D2","D15","GND","3V3"];
+  const pinZ = i => -16 + i * 2.54;          // ESP32 pins along the board, antenna end first (mm)
+  const ESP_B = 20;                           // height of the ESP32 board's underside above the desk (mm)
+  const HC_X = -100;                          // HC-SR04 centre
+  const SENSOR_Z = { Vcc: 3.81, Trig: 1.27, Echo: -1.27, Gnd: -3.81 };
+
+  const STEPS = [
+    { title: "What you're building", body: "An ESP32 that measures distance with the HC-SR04 ultrasonic sensor. Four wires connect them. Keep the USB cable unplugged while you wire, and plug it in last.", wire: null },
+    { title: "Ground: GND to Gnd", color: "#1e1e1e", name: "Black", side: -1, i: 13, sensor: "Gnd",
+      body: "Connect ground first. Every part in a circuit has to share the same ground, the 0 V reference that all other voltages are measured from. This GND is on the same side of the ESP32 as the sensor wires." },
+    { title: "Power: 3V3 to Vcc", color: "#d62a2a", name: "Red", side: 1, i: 14, sensor: "Vcc",
+      body: "3V3 is on the far side of the ESP32, so this wire runs underneath the board. It is the last pin in that row, next to the USB port.",
+      warn: "Use 3V3, not VIN. VIN carries 5 V, and then the sensor would send 5 V back into the ESP32." },
+    { title: "Trigger: D25 to Trig", color: "#f0c419", name: "Yellow", side: -1, i: 7, sensor: "Trig",
+      body: "The ESP32 sends a short 10 µs pulse on this wire to tell the sensor to send a ping." },
+    { title: "Echo: D26 to Echo", color: "#2fa84f", name: "Green", side: -1, i: 8, sensor: "Echo",
+      body: "The sensor holds this wire HIGH for as long as the echo takes to come back. Distance in cm = time in µs ÷ 58. D26 is right next to D25." },
+    { title: "Plug in USB-C", body: "Check all four wires against the table below, then connect the ESP32 to your PC with a USB-C data cable. The red PWR LED should light up. Next, we upload code.", wire: null, usb: true }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), canvas = $("scene"), labelLayer = $("labels");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- Rail UI ----------
+  const stepsEl = $("steps");
+  STEPS.forEach((s, k) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button"; b.id = "step-" + k;
+    b.innerHTML = `<span class="n">${k}</span><span class="sw${s.color ? "" : " none"}"${s.color ? ` style="background:${s.color}"` : ""}></span><span>${s.title}</span>`;
+    b.addEventListener("click", () => setStep(k));
+    li.appendChild(b); stepsEl.appendChild(li);
+  });
+  $("conn").innerHTML = STEPS.filter(s => s.color).map(s => {
+    const espName = (s.side < 0 ? LEFT : RIGHT)[s.i];
+    return `<tr><td><span class="sw" style="background:${s.color}"></span>${s.name}</td><td class="mono">${espName}</td><td class="mono">${s.sensor}</td></tr>`;
+  }).join("");
+  $("prev").addEventListener("click", () => setStep(current - 1));
+  $("next").addEventListener("click", () => setStep(current + 1));
+  addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest("input,textarea")) return;
+    if (e.key === "ArrowRight") setStep(current + 1);
+    if (e.key === "ArrowLeft") setStep(current - 1);
+  });
+
+  if (!window.THREE || !THREE.OrbitControls) {
+    stage.insertAdjacentHTML("beforeend", '<div class="err">The 3D view could not load. Make sure the lib folder (three.min.js and OrbitControls.js) is next to this page. The steps on the right still work.</div>');
+  }
+
+  let current = 0;
+  let three = null;
+
+  function renderRail() {
+    const s = STEPS[current];
+    $("stepCount").textContent = current === 0 ? "Overview" : `Step ${current} of ${STEPS.length - 1}`;
+    $("stepTitle").textContent = s.title;
+    $("stepBody").textContent = s.body;
+    const w = $("stepWarn"); w.hidden = !s.warn; w.textContent = s.warn || "";
+    const sw = $("stepSwatch");
+    sw.style.background = s.color || "transparent";
+    sw.style.borderStyle = s.color ? "solid" : "dashed";
+    $("prev").disabled = current === 0;
+    $("next").disabled = current === STEPS.length - 1;
+    $("next").textContent = current === 0 ? "Start wiring" : "Next step";
+    STEPS.forEach((_, k) => {
+      const b = $("step-" + k);
+      if (k === current) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+    });
+  }
+  function setStep(k) {
+    if (k < 0 || k >= STEPS.length) return;
+    current = k;
+    renderRail();
+    if (three) three.applyStep(k);
+  }
+  renderRail();
+
+  if (!window.THREE || !THREE.OrbitControls) return;
+
+  const start = () => { three = build(); three.applyStep(current); };
+  (document.fonts && document.fonts.ready ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]) : Promise.resolve()).then(start);
+
+  // ---------- 3D ----------
+  function build() {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, 1, 1, 3000);
+    const controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.minDistance = 30; controls.maxDistance = 600;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4450, 0.75));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+    sun.position.set(-70, 180, 110); sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -170, right: 120, top: 120, bottom: -120, near: 10, far: 500 });
+    sun.shadow.bias = -0.0005;
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(120, 80, -60); scene.add(fill);
+
+    const tex = (w, h, draw) => {
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      draw(c.getContext("2d"), w, h);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
+    };
+    const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.6, metalness: 0.05 }, o));
+    const M = {
+      pcb: std(0x15171a), modPcb: std(0x1b1d20), shield: std(0xc4c8ce, { metalness: 0.55, roughness: 0.35 }),
+      metal: std(0xc9cdd3, { metalness: 0.6, roughness: 0.3 }), gold: std(0xd3ad5f, { metalness: 0.6, roughness: 0.3 }),
+      black: std(0x111214, { roughness: 0.75 }), chip: std(0x1a1a1c, { roughness: 0.5 }), cap: std(0xb59a72),
+      hcPcb: std(0x1d5fbf), housing: std(0x0e0f10, { roughness: 0.55 }), button: std(0x2a2a2a)
+    };
+    const add = (geo, mat, x, y, z, shadow = true) => {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+      m.castShadow = shadow; m.receiveShadow = true; scene.add(m); return m;
+    };
+    const box = (w, h, d, mat, x, y, z) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    const decal = (w, d, texture, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, transparent: true }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m;
+    };
+
+    // Desk mat with a 10 mm grid
+    const mat = decal(340, 220, tex(1360, 880, (g, w, h) => {
+      g.fillStyle = "#232a33"; g.fillRect(0, 0, w, h);
+      for (let x = 0; x <= w; x += 40) { g.fillStyle = x % 400 === 0 ? "rgba(120,160,220,.32)" : "rgba(120,160,220,.13)"; g.fillRect(x, 0, 2, h); }
+      for (let y = 0; y <= h; y += 40) { g.fillStyle = y % 400 === 0 ? "rgba(120,160,220,.32)" : "rgba(120,160,220,.13)"; g.fillRect(0, y, w, 2); }
+    }), -40, 0, 10);
+    mat.material.transparent = false;
+
+    // ----- ESP32 dev board (HW-394), pins pointing down -----
+    const top = ESP_B + 1.6;
+    box(28.5, 1.6, 51.5, M.pcb, 0, ESP_B + 0.8, 0);
+    const s = 20;
+    decal(28.5, 51.5, tex(28.5 * s, 51.5 * s, (g, w, h) => {
+      g.fillStyle = "#15171a"; g.fillRect(0, 0, w, h);
+      const X = x => (x + 14.25) * s, Y = z => (z + 25.75) * s;
+      g.strokeStyle = "rgba(255,255,255,.06)"; g.lineWidth = 5;
+      for (let k = 0; k < 9; k++) { g.beginPath(); g.moveTo(X(-6 + k * 1.5), Y(2)); g.lineTo(X(-6 + k * 1.5), Y(6)); g.lineTo(X(-9 + k * 2), Y(13)); g.stroke(); }
+      [[2.4, 2.4], [26.1, 2.4], [2.4, 49.1], [26.1, 49.1]].forEach(([x, y]) => {
+        g.fillStyle = "#c3c7cc"; g.beginPath(); g.arc(x * s, y * s, 1.7 * s, 0, 7); g.fill();
+        g.fillStyle = "#050505"; g.beginPath(); g.arc(x * s, y * s, 1.05 * s, 0, 7); g.fill();
+      });
+      for (let i = 0; i < 15; i++) [-12.7, 12.7].forEach(x => {
+        g.fillStyle = "#c9cdd3"; g.beginPath(); g.arc(X(x), Y(pinZ(i)), 0.85 * s, 0, 7); g.fill();
+      });
+      g.fillStyle = "#f2f2f2"; g.textBaseline = "middle"; g.font = '700 21px "JetBrains Mono", monospace';
+      LEFT.forEach((n, i) => { g.textAlign = "left"; g.fillText(n, X(-12.7) + 24, Y(pinZ(i))); });
+      RIGHT.forEach((n, i) => { g.textAlign = "right"; g.fillText(n, X(12.7) - 24, Y(pinZ(i))); });
+      g.textAlign = "center"; g.font = '700 19px "JetBrains Mono", monospace';
+      g.fillText("PWR", X(-3), Y(-0.2)); g.fillText("D2", X(4), Y(-0.2));
+      g.fillText("EN", X(-9), Y(18.4)); g.fillText("BOOT", X(9), Y(18.4));
+      g.font = '700 22px "JetBrains Mono", monospace'; g.fillText("HW-394", X(1), Y(15.6));
+    }), 0, top + 0.01, 0);
+
+    // ESP-32D module
+    box(18, 0.8, 25.5, M.modPcb, 0, top + 0.4, -13);
+    decal(18, 6.5, tex(360, 130, (g, w, h) => {
+      g.fillStyle = "#1b1d20"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#c9a45a"; g.lineWidth = 9; g.beginPath();
+      let x = 40; g.moveTo(x, 110);
+      for (let k = 0; k < 5; k++) { g.lineTo(x, 25); g.lineTo(x + 28, 25); g.lineTo(x + 28, 95); g.lineTo(x + 56, 95); x += 56; }
+      g.lineTo(x, 25); g.lineTo(330, 25); g.stroke();
+    }), 0, top + 0.81, -22.4);
+    box(16, 2.4, 17, M.shield, 0, top + 0.8 + 1.2, -9.5);
+    decal(16, 17, tex(320, 340, (g, w, h) => {
+      g.fillStyle = "#c4c8ce"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#4a4e55"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = '700 46px "IBM Plex Sans", sans-serif'; g.fillText("ESP-32D", 175, 70);
+      g.font = '600 32px "IBM Plex Sans", sans-serif'; g.fillText("WiFi+BT  N4XX", 160, 145);
+      g.lineWidth = 5; g.strokeStyle = "#4a4e55";
+      [70, 160, 250].forEach(cx => { g.beginPath(); g.arc(cx, 230, 30, 0, 7); g.stroke(); });
+      g.font = '700 30px "IBM Plex Sans", sans-serif'; g.fillText("FC  CE", 210, 300);
+    }), 0, top + 3.21, -9.5);
+
+    // Parts on the board
+    box(4, 1.5, 10, M.chip, 1, top + 0.75, 9.5);                                   // CH340C
+    for (let k = 0; k < 8; k++) [-1, 1].forEach(sd => box(1.4, 0.35, 0.42, M.metal, 1 + sd * 2.6, top + 0.25, 5.05 + k * 1.27));
+    box(6.5, 1.6, 3.5, M.chip, -8, top + 0.8, 10);                                  // AMS1117 regulator
+    box(3.2, 0.6, 1.6, M.metal, -8, top + 0.3, 12.5);
+    [[-3, 1.5, 0xff3b30], [4, 1.5, 0x8fb8ff]].forEach(([x, z, c]) => {           // PWR + D2 LEDs
+      box(1.6, 0.6, 0.8, std(0xf3f3f3, { emissive: c, emissiveIntensity: 0 }), x, top + 0.3, z).userData.led = c;
+    });
+    [[-6, 3.2], [7, 6], [-4, 13], [6, 13.5], [-11, 5]].forEach(([x, z]) => box(1.6, 0.8, 0.8, M.cap, x, top + 0.4, z));
+    box(9, 3.2, 7.5, M.metal, 0, top + 1.6, 23);                                    // USB-C
+    box(6.6, 1.2, 0.2, M.black, 0, top + 1.6, 26.8);
+    [[-9, "EN"], [9, "BOOT"]].forEach(([x]) => {
+      box(3.6, 1.4, 6, M.metal, x, top + 0.7, 22.5);
+      add(new THREE.CylinderGeometry(1.25, 1.25, 1.2, 20), M.button, x, top + 1.9, 22.5);
+    });
+
+    // Headers and pins (pointing down)
+    [-12.7, 12.7].forEach(x => box(2.5, 2.5, 38.1, M.black, x, ESP_B - 1.25, pinZ(7)));
+    const pinTop = top + 1.0, pinBot = ESP_B - 8.5;
+    for (let i = 0; i < 15; i++) [-12.7, 12.7].forEach(x => {
+      box(0.64, pinTop - pinBot, 0.64, M.gold, x, (pinTop + pinBot) / 2, pinZ(i));
+      add(new THREE.CylinderGeometry(0.9, 0.9, 0.5, 12), M.metal, x, top + 0.25, pinZ(i), false);
+    });
+
+    // ----- HC-SR04, lying on its back, pins pointing toward the ESP32 -----
+    box(20, 1.6, 45, M.hcPcb, HC_X, 1.8, 0);
+    decal(20, 45, tex(400, 900, (g, w, h) => {
+      g.fillStyle = "#1d5fbf"; g.fillRect(0, 0, w, h);
+      const Y = z => (z + 22.5) * 20;
+      g.fillStyle = "#eef4ff"; g.textBaseline = "middle";
+      g.textAlign = "center"; g.font = '600 38px "IBM Plex Sans", sans-serif'; g.fillText("HC-SR04", 205, 450);
+      g.font = '600 34px "IBM Plex Sans", sans-serif'; g.fillText("R", 30, 40); g.fillText("T", 30, 860);
+      g.textAlign = "right"; g.font = '700 21px "JetBrains Mono", monospace';
+      Object.entries(SENSOR_Z).forEach(([n, z]) => g.fillText(n, 340, Y(z)));
+      g.fillStyle = "#c9cdd3"; Object.values(SENSOR_Z).forEach(z => { g.beginPath(); g.arc(375, Y(z), 13, 0, 7); g.fill(); });
+    }), HC_X, 2.61, 0);
+    [13, -13].forEach(z => {
+      add(new THREE.CylinderGeometry(8, 8, 12, 40), M.metal, HC_X - 1, 2.6 + 6, z);
+      const d = new THREE.Mesh(new THREE.CircleGeometry(7.3, 40), new THREE.MeshStandardMaterial({ map: tex(256, 256, (g, w) => {
+        g.fillStyle = "#3a3d42"; g.fillRect(0, 0, w, w); g.strokeStyle = "rgba(200,205,212,.55)"; g.lineWidth = 2;
+        for (let k = 0; k < w; k += 10) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, w); g.stroke(); g.beginPath(); g.moveTo(0, k); g.lineTo(w, k); g.stroke(); }
+      }), roughness: 0.8 }));
+      d.rotation.x = -Math.PI / 2; d.position.set(HC_X - 1, 14.62, z); scene.add(d);
+    });
+    box(3.5, 3.5, 11, M.metal, HC_X - 7, 2.6 + 1.75, 0);                           // crystal
+    box(2.5, 2.5, 10.16, M.black, HC_X + 11.25, 1.8, 0);                            // header strip
+    Object.values(SENSOR_Z).forEach(z => box(9, 0.64, 0.64, M.gold, HC_X + 14.5, 1.8, z));
+
+    // ----- Wires -----
+    const wires = [];
+    STEPS.forEach((st, k) => {
+      if (!st.color) return;
+      const zs = SENSOR_Z[st.sensor];
+      const px = st.side * 12.7, pz = pinZ(st.i);
+      const hcHousing = box(14, 2.5, 2.5, M.housing.clone(), HC_X + 19.5, 1.8, zs);
+      const espHousing = box(2.5, 14, 2.5, M.housing.clone(), px, ESP_B - 2.5 - 7, pz);
+      const sx = HC_X + 26.5, ey = ESP_B - 16.5;
+      const lift = { 1: 2.6, 2: 6.5, 3: 3.8, 4: 5.2 }[k];
+      const pts = [
+        new THREE.Vector3(sx, 1.8, zs), new THREE.Vector3(sx + 8, 1.7, zs),
+        new THREE.Vector3((sx + 8 + px - 8) / 2, lift, (zs + pz) / 2),
+        new THREE.Vector3(px - 8, 1.25, pz), new THREE.Vector3(px - 1.2, 1.9, pz), new THREE.Vector3(px, ey, pz)
+      ];
+      const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+      const wm = new THREE.MeshStandardMaterial({ color: st.color, roughness: 0.45, transparent: true });
+      const tube = add(new THREE.TubeGeometry(curve, 160, 0.68, 12, false), wm, 0, 0, 0);
+      tube.userData.step = k; hcHousing.userData.step = k; espHousing.userData.step = k;
+      wires.push({ step: k, meshes: [tube, hcHousing, espHousing],
+        tagEsp: { text: (st.side < 0 ? LEFT : RIGHT)[st.i], color: st.color, pos: new THREE.Vector3(px, ESP_B - 2.5, pz) },
+        tagHc: { text: st.sensor, color: st.color, pos: new THREE.Vector3(HC_X + 19.5, 4.5, zs) },
+        focus: new THREE.Vector3((sx + px) / 2, 4, (zs + pz) / 2) });
+    });
+
+    // ----- USB cable -----
+    const usb = new THREE.Group(); scene.add(usb);
+    const plug = new THREE.Mesh(new THREE.BoxGeometry(11, 6, 16), std(0x2b2f35, { roughness: 0.5 }));
+    plug.position.set(0, top + 1.6, 26.75 + 8); plug.castShadow = true; usb.add(plug);
+    const cableCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, top + 1.6, 42.7), new THREE.Vector3(0, top, 55), new THREE.Vector3(6, 2, 72),
+      new THREE.Vector3(20, 1.6, 95), new THREE.Vector3(40, 1.6, 118)
+    ]);
+    const cable = new THREE.Mesh(new THREE.TubeGeometry(cableCurve, 80, 1.8, 12, false), std(0x2b2f35, { roughness: 0.5 }));
+    cable.castShadow = true; usb.add(cable);
+
+    const leds = []; scene.traverse(o => { if (o.userData && o.userData.led) leds.push(o); });
+
+    // ----- Floating labels -----
+    const parts = [
+      { text: "ESP32 (HW-394)", pos: new THREE.Vector3(0, top + 6, -14), part: true },
+      { text: "HC-SR04 sensor", pos: new THREE.Vector3(HC_X - 1, 18, 0), part: true },
+      { text: "USB-C to your PC", pos: new THREE.Vector3(14, 6, 92), part: true, usbOnly: true }
+    ];
+    let activeTags = [];
+    function setTags(list) {
+      labelLayer.innerHTML = "";
+      activeTags = list.map(t => {
+        const el = document.createElement("div");
+        el.className = "tag" + (t.part ? " part" : "");
+        el.innerHTML = (t.color ? `<i style="background:${t.color}"></i>` : "") + t.text;
+        labelLayer.appendChild(el);
+        return { el, pos: t.pos };
+      });
+    }
+
+    // ----- Camera moves -----
+    let tween = null;
+    function flyTo(pos, target) {
+      const narrow = stage.clientWidth / Math.max(1, stage.clientHeight) < 1.05;
+      if (narrow) pos = target.clone().add(pos.clone().sub(target).multiplyScalar(1.45));
+      if (reduceMotion) { camera.position.copy(pos); controls.target.copy(target); return; }
+      tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, t: performance.now() };
+    }
+    const overviewTarget = new THREE.Vector3(-48, 6, 4);
+    camera.position.set(-25, 150, 175); controls.target.copy(overviewTarget);
+
+    function applyStep(k) {
+      const st = STEPS[k];
+      wires.forEach(w => w.meshes.forEach((m, j) => {
+        const on = !st.color || w.step === k;
+        m.material.transparent = !on; m.material.opacity = on ? 1 : 0.14;
+        if (j > 0) { m.material.emissive = new THREE.Color(w.step === k ? 0x553300 : 0x000000); }
+      }));
+      usb.visible = k === 0 || !!st.usb;
+      leds.forEach(l => { l.material.emissiveIntensity = st.usb && l.userData.led === 0xff3b30 ? 1.6 : 0; });
+      if (st.color) {
+        const w = wires.find(x => x.step === k);
+        setTags([w.tagEsp, w.tagHc]);
+        flyTo(w.focus.clone().add(new THREE.Vector3(25, 75, 95)), w.focus);
+      } else if (st.usb) {
+        setTags([parts[0], parts[2]]);
+        flyTo(new THREE.Vector3(75, 85, 130), new THREE.Vector3(0, 14, 35));
+      } else {
+        setTags(parts.filter(p => !p.usbOnly).concat([parts[2]]));
+        flyTo(new THREE.Vector3(-25, 150, 175), overviewTarget);
+      }
+    }
+
+    // Click a wire to jump to its step
+    const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+    let down = null;
+    canvas.addEventListener("pointerdown", e => { down = [e.clientX, e.clientY]; tween = null; });
+    canvas.addEventListener("pointerup", e => {
+      if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+      const r = canvas.getBoundingClientRect();
+      mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(mouse, camera);
+      const hit = ray.intersectObjects(wires.flatMap(w => w.meshes))[0];
+      if (hit) setStep(hit.object.userData.step);
+    });
+
+    function resize() {
+      const w = stage.clientWidth, h = stage.clientHeight;
+      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    }
+    new ResizeObserver(resize).observe(stage); resize();
+
+    const v = new THREE.Vector3();
+    (function loop(now) {
+      requestAnimationFrame(loop);
+      if (tween) {
+        const k = Math.min(1, (now - tween.t) / 900), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        camera.position.lerpVectors(tween.p0, tween.p1, e); controls.target.lerpVectors(tween.t0, tween.t1, e);
+        if (k === 1) tween = null;
+      }
+      controls.update();
+      renderer.render(scene, camera);
+      const w = stage.clientWidth, h = stage.clientHeight;
+      activeTags.forEach(t => {
+        v.copy(t.pos).project(camera);
+        const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+        t.el.hidden = !vis;
+        t.el.style.left = ((v.x + 1) / 2 * w) + "px";
+        t.el.style.top = ((1 - v.y) / 2 * h - 6) + "px";
+      });
+    })(performance.now());
+
+    return { applyStep };
+  }
+})();
+</script>
