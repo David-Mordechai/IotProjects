@@ -18,6 +18,8 @@
 
 // Radio settings. Israel: 433.05-434.79 MHz, low power. 434.0 MHz avoids the
 // busy 433.92 MHz used by car keys and garage remotes.
+// (Tested 433.42 MHz on 2026-11-10 to rule out clock harmonics at 434.000 MHz: the
+// receiver limit stayed at about -87 dBm, so 434.0 stays.)
 const float FREQ_MHZ   = 434.0;
 const float BITRATE    = 4.8;   // kbit/s: slow = longer range, more reliable
 const float FREQ_DEV   = 5.2;   // kHz
@@ -92,6 +94,12 @@ void apply433MHzFixes() {
   radio.SPIwriteRegister(RADIOLIB_CC1101_REG_TEST2, 0x81);
   radio.SPIwriteRegister(RADIOLIB_CC1101_REG_TEST1, 0x35);
   radio.SPIwriteRegister(RADIOLIB_CC1101_REG_FIFOTHR, radio.SPIreadRegister(RADIOLIB_CC1101_REG_FIFOTHR) | 0x40);
+  // 3) Frequency-offset compensation. RadioLib leaves FOC_BS_CS_GATE set (0x76), and per TI
+  //    "the offset compensator will freeze until carrier sense asserts" (bit sync too).
+  //    Carrier sense only asserts above a fixed level, so weak packets were demodulated
+  //    with frequency correction and bit timing frozen. TI's 433 MHz 1.2 kBaud preset,
+  //    SpaceTeddy CC1101 and SmartRC CC1101 all use 0x16 (gate off, 3K/K/2, limit BW/4).
+  radio.SPIwriteRegister(RADIOLIB_CC1101_REG_FOCCFG, 0x16);
   radio.SPIsendCommand(RADIOLIB_CC1101_CMD_IDLE);
   radio.SPIsendCommand(RADIOLIB_CC1101_CMD_CAL);             // calibrate with the new settings
   delay(2);
@@ -127,6 +135,15 @@ void setup() {
   radio.setPacketReceivedAction(onPacket);
 
   apply433MHzFixes();
+
+  // Print every configuration register (0x00-0x2E) once, so the real chip settings can
+  // be compared with TI SmartRF Studio / other libraries' known-good values.
+  Serial.print("CC1101 registers 00-2E:");
+  for (uint8_t reg = 0x00; reg <= 0x2E; reg++) {
+    if (reg % 16 == 0) Serial.printf("\n  %02X:", reg);
+    Serial.printf(" %02X", radio.SPIreadRegister(reg));
+  }
+  Serial.println();
 
 #if defined(ROLE_RECEIVER) || defined(ROLE_NOISE)
   state = radio.startReceive();
