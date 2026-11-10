@@ -29,3 +29,6 @@ desktop.ini
 *.tmp
 *.swp
 *~
+
+# Range-test recordings (contain GPS positions)
+logs/
