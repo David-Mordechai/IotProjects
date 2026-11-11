@@ -15,6 +15,7 @@
 #include <Arduino.h>
 #include <RadioLib.h>
 #include "weblog.h"   // phone log page; does nothing unless built with -D WEB_LOG
+#include "flashlog.h" // flash recorder; does nothing unless built with -D FLASH_LOG
 
 // Radio settings. Israel: 433.05-434.79 MHz, low power. 434.0 MHz avoids the
 // busy 433.92 MHz used by car keys and garage remotes.
@@ -66,7 +67,8 @@ void stopWithError(const char* what, int code) {
 volatile bool packetArrived = false;
 void IRAM_ATTR onPacket() { packetArrived = true; }  // runs when GDO0 fires
 
-// Print a line to USB and (in the *_web envs) to the phone page too.
+// Print a line to USB, and (in the *_web envs) to the phone page,
+// and (in receiver_rec) to the flash recorder.
 void logLine(const char* fmt, ...) {
   char buf[200];
   va_list args;
@@ -75,6 +77,7 @@ void logLine(const char* fmt, ...) {
   va_end(args);
   Serial.println(buf);
   webAdd(buf);
+  flashAdd(buf);
 }
 
 // Settings RadioLib 7.8.1 doesn't apply for our band/setup (found 2026-11-10 by comparing
@@ -126,6 +129,7 @@ void setup() {
 #else
   Serial.println("\n=== Hello radio: RECEIVER (listens, answers) ===");
 #endif
+  flashBegin();
 
   int state = radio.begin(FREQ_MHZ, BITRATE, FREQ_DEV, RX_BW, POWER_DBM, PREAMBLE_BITS);
   if (state != RADIOLIB_ERR_NONE) stopWithError("radio.begin", state);
@@ -260,7 +264,10 @@ void loop() {
 #ifdef ROLE_RECEIVER
 void loop() {
   webLoop();                   // answer the phone page (receiver_web only)
-  if (!packetArrived) return;
+  if (!packetArrived) {
+    flashLoop();               // write queued log lines only while idle (receiver_rec only)
+    return;
+  }
   packetArrived = false;
 
   // Lost-message counter for the range test: the sender numbers every message
