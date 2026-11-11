@@ -1,6 +1,6 @@
 # Electronics Inventory
 
-_Last updated: 2026-11-10_
+_Last updated: 2026-11-11_
 
 ## Microcontrollers
 
@@ -39,6 +39,23 @@ _Last updated: 2026-11-10_
 | # | Item | Qty | Details | Notes |
 |---|------|-----|---------|-------|
 | 4 | WS2812 RGB LED + 5 V Buzzer board (FPV drone beeper) | 2 | Small board with a loud **active buzzer** and **addressable RGB LEDs (WS2812)**, made for drones. Runs on 5 V. Pins: `INPUT`, `GND`, `+5V`, `BB-`, `OUTPUT` | Bought 4; gave 2 to a friend. Pin labels confirmed from a photo. |
+
+## Displays
+
+| # | Item | Qty | Details | Notes |
+|---|------|-----|---------|-------|
+| 7 | **Waveshare 7inch DPI LCD** kit: 7" IPS panel, **1024×600**, no touch + `RGB LCD HAT for Raspberry Pi` + `RGB 50P TO 40/50P` adapter + white FFC cable | 1 | Parallel **RGB (DPI)** interface. The panel has a 50-pin golden FPC cable; the HAT plugs onto a Raspberry Pi's 40-pin GPIO header | Added 2026-11-11. Box ticked "1024*600". Photos: `photos/waveshare-7in-dpi-lcd-hat-adapter.jpg`, `photos/waveshare-7in-dpi-lcd-box.jpg`. |
+
+### Quick reference: Waveshare 7inch DPI LCD
+- **Hookup (from the Waveshare wiki):** RGB LCD HAT → white FFC cable → adapter socket **JP1**; panel's golden FPC cable → adapter socket **JP2**. The HAT then sits on a Raspberry Pi's 40-pin header.
+- **Made for a Raspberry Pi, not the ESP32 HW-394.** DPI uses about 28 GPIO pins for the pixel data and clocks, and a 1024×600 frame at 16-bit colour needs ~1.2 MB of RAM. The HW-394 has ~520 KB RAM, no PSRAM and no RGB-LCD hardware, so it can't drive this panel. Options: a Raspberry Pi (setup = overlays in `config.txt`, see the wiki), or an **ESP32-S3 with octal PSRAM** (e.g. DevKitC-1 N16R8) wired to the HAT's 40-pin header in RGB565 mode: ~20 signal wires + 5 V + GND, needs male-to-female jumpers, pixel clock ~25–30 MHz. Not tested yet; see the details below.
+- **Verified from Waveshare's schematics and the panel datasheet (2026-11-11):**
+  - Panel: **FY07024DI26A67-FT**, 50-pin RGB888. It needs DVDD 3.3 V, AVDD 9.6 V, VGH 18 V, VGL −6 V, and a backlight of 9.8 V / 160 mA. Its dot clock spec is 45–57 MHz (typ 51.2), but the Pi setup runs it at 37 MHz.
+  - The **HAT is the power supply**: from the Pi header's 5 V it makes AVDD (MP1541), VGH/VGL (charge pumps) and the backlight (PT4103 boost, on/off switch). The wiki gives ~450 mA at 5 V. So the panel can't be wired straight to a microcontroller; the HAT has to be in between.
+  - The HAT's 40-pin header carries **RGB666** (R2–R7, G2–G7, B2–B7) + PCLK, DE, HSYNC, VSYNC + 5 V + GND. MODE is pulled high, so the panel runs in DE mode.
+  - The adapter's 40-pin side is a "LCD 4.3" pinout for other Waveshare panels; it is **not** compatible with the ESP32-S3-LCD-Driver-Board's 40-pin port, and that board can't make the panel's high voltages anyway.
+- **`VCOM` knob on the HAT:** a trimmer that tunes the panel's common voltage (contrast/flicker). Leave it alone unless the picture flickers.
+- **Docs:** https://www.waveshare.com/wiki/7inch_DPI_LCD
 
 ### Quick reference: HC-SR04 with ESP32
 - **How it works:** the `T` speaker sends an ultrasonic "ping" and `R` hears the echo. Distance in cm = echo time (µs) / 58.
