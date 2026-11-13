@@ -1,0 +1,694 @@
+<title>Solar LoRa Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Same workbench layout as the HC-SR04 and CC1101 guides: 3D stage left, step rail right; stacks on phones. */
+:root {
+  --bg: #eceff2; --panel: #fbfcfd; --ink: #161a1f; --muted: #5a6470; --line: #d5dbe2;
+  --accent: #1f5fae; --accent-soft: #dce8f6; --stage-a: #dde3e9; --stage-b: #c9d1da;
+  --danger: #b42318; --code-bg: #e3e8ee; --plan: #8a5a00; --plan-soft: #fbf0dc;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+    --accent: #7fb2ef; --accent-soft: #182a40; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+    --code-bg: #0a0d10; --plan: #f2b55a; --plan-soft: #2a2010; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+  --accent: #7fb2ef; --accent-soft: #182a40; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+  --code-bg: #0a0d10; --plan: #f2b55a; --plan-soft: #2a2010; color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 420px; }
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 40% 30%, var(--stage-a), var(--stage-b)); }
+#scene { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#scene:active { cursor: grabbing; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; transform: translate(-50%, -100%); white-space: nowrap;
+  font: 700 12px/1 var(--font-mono); padding: 5px 8px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .18); display: flex; align-items: center; gap: 6px; }
+.tag i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1px solid rgb(127 127 127 / .6); }
+.tag.part { font-family: var(--font-body); font-weight: 600; font-size: 12px; }
+.hint { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 6px; opacity: .92; max-width: calc(100% - 32px); }
+.views { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
+.views button { border: 1px solid transparent; background: transparent; padding: 8px 12px; font-size: 13px; }
+.views button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.rail { min-width: 0; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line);
+  padding-block: 22px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px; }
+.eyebrow { font: 600 11px/1 var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 26px/1.12 var(--font-display); margin: 8px 0 0; text-wrap: balance; letter-spacing: -.01em; }
+.lede { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+.planned { margin-top: 10px; font-size: 13px; color: var(--plan); background: var(--plan-soft); border: 1px solid var(--plan);
+  border-radius: 8px; padding: 8px 10px; }
+h2 { font: 600 13px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+.card .count { font: 500 12px/1 var(--font-mono); color: var(--muted); }
+.card h3 { margin: 0; font: 700 20px/1.2 var(--font-display); display: flex; align-items: center; gap: 10px; }
+.card h3 .sw { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1px solid rgb(127 127 127 / .6); }
+.card p { margin: 0; }
+.card .warn { color: var(--danger); font-weight: 500; }
+.card .solder { color: var(--plan); font-weight: 600; }
+.nav { display: flex; gap: 8px; }
+button { font: 600 14px/1 var(--font-body); border-radius: 8px; padding: 10px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, .steps button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.steps button { width: 100%; text-align: left; display: grid; grid-template-columns: 22px 14px 1fr; gap: 10px; align-items: center;
+  border: 1px solid transparent; background: transparent; padding: 9px 10px; font-weight: 500; }
+.steps button:hover { background: var(--bg); }
+.steps button[aria-current="step"] { background: var(--accent-soft); border-color: var(--accent); }
+.steps .n { font: 700 12px/1 var(--font-mono); color: var(--muted); }
+.steps .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgb(127 127 127 / .6); }
+.steps .sw.none { border-style: dashed; background: transparent; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.mono { font-family: var(--font-mono); font-weight: 700; font-size: 12px; white-space: nowrap; }
+td.dim { color: var(--muted); }
+.acc ul { margin: 6px 0 12px; padding-left: 18px; }
+.acc li { margin: 3px 0; }
+.acc .ok { font-weight: 600; }
+.acc .simp { color: var(--muted); font-weight: 600; }
+.small { font-size: 13px; color: var(--muted); }
+code { font-family: var(--font-mono); font-size: 12px; }
+.err { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; height: auto; }
+  html, body { height: auto; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="scene" aria-label="3D model of a solar GPS and LoRa tracker: XIAO ESP32-S3 with LoRa and GPS boards, solar charger, battery, solar panel and antennas"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="views" role="group" aria-label="Camera side">
+      <button type="button" id="viewTop" aria-pressed="true">From above</button>
+      <button type="button" id="viewUnder" aria-pressed="false">Plugs underneath</button>
+    </div>
+    <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan · click a part or wire</div>
+  </div>
+
+  <aside class="rail">
+    <header>
+      <div class="eyebrow">Project 3 · Solar GPS + LoRa tracker</div>
+      <h1>How the tracker connects</h1>
+      <p class="lede">A tiny XIAO ESP32-S3 with a LoRa radio on top and a GPS board underneath. The sun charges a battery through a solar charger. Every few minutes the tracker wakes, gets its position and sends it about 1 km to a second board at home, then sleeps again.</p>
+      <p class="planned"><b>Planned design, not built yet.</b> Sizes and pin positions come from the makers' datasheets and CAD files. Steps marked <b>solder</b> need a soldering iron.</p>
+    </header>
+
+    <section class="card" aria-live="polite">
+      <div class="count" id="stepCount"></div>
+      <h3><span class="sw" id="stepSwatch"></span><span id="stepTitle"></span></h3>
+      <p id="stepBody"></p>
+      <p class="solder" id="stepSolder" hidden></p>
+      <p class="warn" id="stepWarn" hidden></p>
+      <div class="nav">
+        <button id="prev" type="button">Back</button>
+        <button id="next" type="button" class="primary">Next step</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Steps</h2>
+      <ol class="steps" id="steps"></ol>
+    </section>
+
+    <section>
+      <h2>XIAO pin plan</h2>
+      <table>
+        <thead><tr><th>Pin</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">D0</td><td>GPS sleep / wake (L76K, built in)</td></tr>
+          <tr><td class="mono">D1</td><td>Battery level, through a 1 MΩ + 1 MΩ divider</td></tr>
+          <tr><td class="mono">D2</td><td>GPS reset (L76K V1.1, built in)</td></tr>
+          <tr><td class="mono">D3</td><td class="dim">Spare: planned switch for sensor power</td></tr>
+          <tr><td class="mono">D4 / D5</td><td>I2C sensor bus (SDA / SCL) to the STEMMA QT socket</td></tr>
+          <tr><td class="mono">D6 / D7</td><td>GPS serial data (L76K, built in)</td></tr>
+          <tr><td class="mono">D8–D10</td><td>LoRa SPI, shared with the radio's connector</td></tr>
+          <tr><td class="mono">B2B</td><td>LoRa radio: CS, reset, busy, DIO1, RF switch (GPIO 38–42)</td></tr>
+        </tbody>
+      </table>
+      <p class="small">More sensors share the same two I2C wires (each has its own address), so adding one uses no extra pins.</p>
+    </section>
+
+    <section>
+      <h2>Power path</h2>
+      <table>
+        <tbody>
+          <tr><td class="mono">Panel</td><td>6 V 2 W (Voltaic P126), 3.5×1.1 mm plug → adapter → 5.5×2.1 mm jack</td></tr>
+          <tr><td class="mono">Charger</td><td>Adafruit bq24074: runs the tracker from the sun first, charges the rest into the battery, stops charging outside 0–50 °C</td></tr>
+          <tr><td class="mono">Battery</td><td>Protected 18650, 2200 mAh: about 5 days with no sun</td></tr>
+          <tr><td class="mono">USB-C #1</td><td>Waterproof wall socket → charger's USB-C: power + charging, works together with the panel</td></tr>
+          <tr><td class="mono">USB-C #2</td><td>Waterproof wall socket → XIAO's USB-C: programming and serial monitor</td></tr>
+          <tr><td class="mono">XIAO</td><td>Fed on its BAT pads from the charger's LOAD output (≤ 4.4 V)</td></tr>
+          <tr><td class="mono">Radio</td><td>916.0 MHz, +14 dBm max, 1% of the time (Israeli rules)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="acc">
+      <h2>How accurate is this model?</h2>
+      <span class="ok">From the makers' files</span>
+      <ul>
+        <li>XIAO ESP32-S3 size (21 × 17.8 mm), pin order, BAT pad positions: Seeed DXF and STEP.</li>
+        <li>bq24074 board (38.1 × 33.0 mm), header order, JST and jack positions, mounting holes: Adafruit EAGLE and STEP files.</li>
+        <li>Solar panel 112 × 136 mm with its junction box; 18650 cell 69 × 18 mm; GPS patch 25 × 25 × 8.5 mm.</li>
+      </ul>
+      <span class="simp">Simplified or estimated</span>
+      <ul>
+        <li>Board components are blocks. The Wio-SX1262 and L76K boards are drawn as plain boards with their main parts.</li>
+        <li>Stack heights (B2B gap 3.5 mm, socket height 8.5 mm) are estimates. Measure the real parts before the box is printed.</li>
+        <li>The long stacking pins under the GPS board are our plan for plugging extra wires in. They need soldering onto the GPS board.</li>
+        <li>Parts sit where the box draft puts them (<code>cad/tracker_box_draft.FCStd</code>): blue lines = box walls, amber = battery bay, pink = sensor bay. Walls and lid aren't drawn so you can see inside; the solar panel (the lid) is drawn beside the box.</li>
+      </ul>
+      <p class="small">Plan, decisions and sources: <code>plans/gps-lora-tracker.md</code></p>
+    </section>
+  </aside>
+</div>
+
+<!-- Three.js r128, stored locally in ./lib so the page works offline -->
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+(function () {
+  // ---------- geometry (mm). X right, Y up, Z toward the viewer ----------
+  // XIAO: USB-C at the far end (-Z). Seen from above with USB away from you: left row D0..D6, right row 5V..D7.
+  const XL = ["D0","D1","D2","D3","D4","D5","D6"];
+  const XR = ["5V","GND","3V3","D10","D9","D8","D7"];
+  const xPin = (side, i) => ({ x: side * 7.62, z: -10.5 + 2.93 + i * 2.54 });     // DXF: pin 1 is 2.93 mm from the USB edge
+  const L76_Y = 20, XIAO_Y = L76_Y + 1.6 + 8.5, WIO_Y = XIAO_Y + 1.25 + 3.5;     // undersides
+  const PIN_BOT = 10;                                                            // long stacking pins end here
+  // Layout = the box draft (cad/tracker_box_draft.FCStd): world x = X - 78, z = 72 - Y, y = height above the box floor.
+  const SXW = -7.5, SZW = -36;                                                   // stack centre (box X 70.5, Y 108), turned 180 deg
+  const BQ_X0 = 22, BQ_Z1 = 20, BQ_Y = 21;                                       // charger origin box (100, 52), on 21 mm standoffs
+  const BQH = ["VBUS","GND","THERM","ISET","CE","PGOOD","CHG","OUT","GND","LIPO","GND"];
+  const bq = (bx, by) => ({ x: BQ_X0 + bx, z: BQ_Z1 - by });                      // Adafruit board coords -> world
+  const bqPin = i => bq(6.35 + i * 2.54, 2.54);
+
+  const C = { red: "#d62a2a", black: "#1e1e1e", yellow: "#f0c419", blue: "#2f6fd6", green: "#2fa84f", white: "#e6e6e6",
+              orange: "#ef7d22", purple: "#8a4fd0", coax: "#3a3f45", gray: "#8a8f96" };
+
+  const STEPS = [
+    { title: "What you're building", body: "Three small boards stacked into one: the LoRa radio on top, the XIAO ESP32-S3 in the middle, the GPS underneath. Beside them: the solar charger, the battery and the solar panel. Click Next to put it together one connection at a time. The order is also the safe order: the battery goes in late, the panel last." },
+    { title: "LoRa board onto the XIAO", key: "wio", color: "#3aa0a0",
+      body: "The Wio-SX1262 radio board clicks onto a tiny 30-pin connector (B2B, board-to-board) on top of the XIAO. Press it down gently and evenly until it clicks. The radio talks to the XIAO through pins that are not on the side rows, so D0–D7 stay free.",
+      warn: "Never power the radio without an antenna connected (step 4). A transmitter without an antenna reflects its own energy back into the chip." },
+    { title: "GPS board under the XIAO", key: "l76k", color: "#c9a227",
+      body: "The L76K GPS board plugs onto the XIAO's pins from underneath. It uses D0 (sleep/wake), D2 (reset), D6/D7 (serial data), 3V3 and GND. Its sockets have long pins that come out below, so the extra wires in later steps plug onto those pins with your female jumpers.",
+      solder: "Solder: the 14-pin stacking sockets onto the GPS board (once). Buy an L76K stocked after 22 Dec 2024 (version 1.1: reset moved from D10 to D2, so it no longer clashes with the radio)." },
+    { title: "GPS antenna", key: "gpsAnt", color: C.coax,
+      body: "The flat square is the GPS antenna (25 × 25 mm). Its 10 cm cable snaps onto the small round U.FL socket on the GPS board: line it up and press straight down. The antenna must face the sky. In the box it sits under a thin window in the lid, beside the solar panel, not under it: the panel's metal back blocks satellite signals." },
+    { title: "LoRa antenna through the box wall", key: "loraAnt", color: C.coax,
+      body: "A short cable (a pigtail) snaps onto the radio's U.FL socket. Its other end is a threaded SMA socket that bolts through the box wall with an 8 mm nut. The 915 MHz antenna screws on outside and stands upright, about 12 cm away from the GPS antenna.",
+      warn: "Use a 915 MHz antenna. A 433 MHz antenna like the CC1101's won't work on this radio." },
+    { title: "Battery into the charger", key: "batt", color: C.red,
+      body: "The 18650 battery's JST plug goes into the charger's socket labelled LiPo Batt (the one nearer the pin row). The charger fills the battery whenever the sun shines.",
+      warn: "Check the polarity before plugging in: the red wire must go to the + pin. Batteries from other shops can have the plug wired the other way round, and that destroys the charger." },
+    { title: "Charger LOAD to the XIAO's BAT pads", key: "load", color: C.red,
+      body: "The second JST socket, Load Out, feeds the tracker. Its two wires go to the BAT+ and BAT− pads under the XIAO. The XIAO then runs as if it had its own battery, and the charger decides where the sun's power goes: tracker first, battery second. LOAD never goes above 4.4 V, which is safe for these pads.",
+      solder: "Solder: two wires onto the BAT pads under the XIAO, before the GPS board goes on. BAT− is the pad nearer the USB end." },
+    { title: "Battery level to D1", key: "divider", color: C.orange,
+      body: "Four connections. 1) Orange wire: the charger's LIPO pin (battery +) to resistor R1. 2) R1's other leg goes to the junction point (the yellow dot). 3) Orange wire: the junction to the XIAO's D1. 4) Resistor R2 from the junction to the black wire, which goes to the charger's GND pin. Why: the battery reaches 4.2 V but a XIAO pin takes at most 3.3 V. Two equal resistors split the voltage in half, so the junction sees 1.5–2.1 V, and the code multiplies the reading by 2. At 1 MΩ each, only about 2 µA flows. While testing, make the junction on a small breadboard; in the final build, solder it.",
+      warn: "Take the battery from the charger's LIPO pin, not from LOAD. In sunshine LOAD sits at 4.4 V even when the battery is low." },
+    { title: "Temperature guard (NTC)", key: "ntc", color: C.purple,
+      body: "A 10 kΩ NTC thermistor (103AT) is a small bead whose resistance changes with temperature. Tape it to the battery and wire it between the charger's THERM pin and GND. The charger then stops charging below 0 °C or above 50 °C, which matters in a box in the Israeli summer sun.",
+      solder: "Solder/cut: cut the small THERM jumper trace on the charger first. Otherwise its built-in resistor overrides the thermistor." },
+    { title: "Sensor socket (I2C)", key: "sensor", color: C.blue,
+      body: "This is where extra sensors go later. A STEMMA QT / Qwiic socket carries 4 wires: 3V3, GND, SDA (D4) and SCL (D5). Sensors chain one after another on the same two data wires, each with its own address. Shown here: a temperature sensor board as an example.",
+      warn: "Air sensors (temperature, humidity) must sit outside the sealed box, in a small shaded vent shield. Inside, they measure the sun-heated box." },
+    { title: "Solar panel", key: "panel", color: C.black,
+      body: "The panel's 3.5 × 1.1 mm plug goes through an adapter into the charger's 5.5 × 2.1 mm DC jack. Connect it last, when everything else is checked. The green GOOD light means sun power is arriving; the red CHG light means the battery is charging." },
+    { title: "USB-C #1: charging port", key: "usb1", color: "#c0392b",
+      body: "A waterproof USB-C socket goes through the box wall (female outside, with a rubber cap). On the inside, its short cable plugs into the charger's own USB-C. Plug a phone charger in from outside: it runs the tracker and charges the battery, about 3–3.5 hours from empty. The panel can stay connected: each input has its own one-way diode on the charger board, so the higher voltage wins and nothing flows back into the phone charger.",
+      warn: "This port is power only (the charger's USB-C has no data wires), so it can't program the XIAO. Use a charger of at least 1.5 A; a PC port may be too weak." },
+    { title: "USB-C #2: programming port", key: "usb2", color: "#8a4fd0",
+      body: "A second waterproof USB-C socket, this one wired to the XIAO's USB-C. Plug your PC in here to upload new code or watch the serial monitor without opening the box. It is safe with the battery connected: inside the XIAO, USB and battery are kept apart by a diode and a transistor, so nothing flows back into your PC.",
+      warn: "This socket and its cable must carry data (USB 2.0 data lines). Many cheap panel sockets are power-only." },
+    { title: "Running", run: true,
+      body: "Every few minutes the XIAO wakes up, wakes the GPS (D0), waits for a position (1–5 s with the GPS backup cell), reads the battery and the sensors, and sends one short message at 916 MHz. The radio is on for about 0.2 s. Then everything sleeps. The 2 W panel gives several times what this uses, even in December." }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), canvas = $("scene"), labelLayer = $("labels");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- rail ----------
+  const stepsEl = $("steps");
+  STEPS.forEach((s, k) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button"; b.id = "step-" + k;
+    b.innerHTML = `<span class="n">${k}</span><span class="sw${s.color ? "" : " none"}"${s.color ? ` style="background:${s.color}"` : ""}></span><span>${s.title}</span>`;
+    b.addEventListener("click", () => setStep(k));
+    li.appendChild(b); stepsEl.appendChild(li);
+  });
+  $("prev").addEventListener("click", () => setStep(current - 1));
+  $("next").addEventListener("click", () => setStep(current + 1));
+  addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest("input,textarea")) return;
+    if (e.key === "ArrowRight") setStep(current + 1);
+    if (e.key === "ArrowLeft") setStep(current - 1);
+  });
+  if (!window.THREE || !THREE.OrbitControls) {
+    stage.insertAdjacentHTML("beforeend", '<div class="err">The 3D view could not load. Make sure the lib folder (three.min.js and OrbitControls.js) is next to this page. The steps on the right still work.</div>');
+  }
+  let current = 0, three = null;
+  function renderRail() {
+    const s = STEPS[current];
+    $("stepCount").textContent = current === 0 ? "Overview" : `Step ${current} of ${STEPS.length - 1}`;
+    $("stepTitle").textContent = s.title;
+    $("stepBody").textContent = s.body;
+    const w = $("stepWarn"); w.hidden = !s.warn; w.textContent = s.warn || "";
+    const so = $("stepSolder"); so.hidden = !s.solder; so.textContent = s.solder || "";
+    const sw = $("stepSwatch"); sw.style.background = s.color || "transparent"; sw.style.borderStyle = s.color ? "solid" : "dashed";
+    $("prev").disabled = current === 0;
+    $("next").disabled = current === STEPS.length - 1;
+    $("next").textContent = current === 0 ? "Start" : "Next step";
+    STEPS.forEach((_, k) => { const b = $("step-" + k); if (k === current) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
+  }
+  function setStep(k) { if (k < 0 || k >= STEPS.length) return; current = k; renderRail(); if (three) three.applyStep(k); }
+  renderRail();
+  if (!window.THREE || !THREE.OrbitControls) return;
+  const start = () => { three = build(); three.applyStep(current); };
+  (document.fonts && document.fonts.ready ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]) : Promise.resolve()).then(start);
+
+  // ---------- 3D ----------
+  function build() {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, 1, 1, 4000);
+    const controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true; controls.minPolarAngle = 0.02; controls.maxPolarAngle = Math.PI - 0.02;
+    controls.minDistance = 30; controls.maxDistance = 900;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4450, 0.75));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+    sun.position.set(40, 320, 160); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -260, right: 260, top: 260, bottom: -260, near: 10, far: 900 }); sun.shadow.bias = -0.0005;
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(200, 90, -80); scene.add(fill);
+    const under = new THREE.DirectionalLight(0xffffff, 0.6); under.position.set(30, -160, 60); scene.add(under);
+
+    const tex = (w, h, draw) => { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+    const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.6, metalness: 0.05 }, o));
+    const M = { gold: std(0xd3ad5f, { metalness: 0.6, roughness: 0.3 }), metal: std(0xc9cdd3, { metalness: 0.6, roughness: 0.3 }),
+      black: std(0x111214, { roughness: 0.75 }), chip: std(0x1a1a1c, { roughness: 0.5 }), housing: std(0x0e0f10, { roughness: 0.55 }),
+      cream: std(0xe9e1cf), brass: std(0xd9b45a, { metalness: 0.7, roughness: 0.28 }), rubber: std(0x18191b, { roughness: 0.85 }) };
+
+    // Every mesh belongs to a "key" (a step) so steps can highlight it.
+    const byKey = {};
+    const reg = (key, m) => { (byKey[key] = byKey[key] || []).push(m); m.userData.key = key; return m; };
+    let PARENT = null;                                  // while set, new meshes go into this group (the stack)
+    const add = (key, geo, mat, x, y, z, parent = PARENT || scene) => { const m = new THREE.Mesh(geo, mat.clone()); m.position.set(x, y, z);
+      m.castShadow = true; m.receiveShadow = true; parent.add(m); return reg(key, m); };
+    const box = (key, w, h, d, mat, x, y, z) => add(key, new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    const decal = (key, w, d, texture, x, y, z) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d),
+      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, transparent: true }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; (PARENT || scene).add(m); return reg(key, m); };
+    const label = (g, s, x, y, size = 20, align = "center", color = "#f2f2f2", font = "JetBrains Mono") => {
+      g.fillStyle = color; g.textAlign = align; g.textBaseline = "middle"; g.font = `700 ${size}px "${font}", monospace`; g.fillText(s, x, y); };
+
+    // desk with a 10 mm grid
+    const desk = decal("desk", 300, 380, tex(900, 1140, (g, w, h) => {
+      g.fillStyle = "#232a33"; g.fillRect(0, 0, w, h);
+      for (let x = 0; x <= w; x += 30) { g.fillStyle = x % 300 === 0 ? "rgba(120,160,220,.30)" : "rgba(120,160,220,.12)"; g.fillRect(x, 0, 2, h); }
+      for (let y = 0; y <= h; y += 30) { g.fillStyle = y % 300 === 0 ? "rgba(120,160,220,.30)" : "rgba(120,160,220,.12)"; g.fillRect(0, y, w, 2); }
+    }), 0, 0, -65);
+    desk.material.transparent = false;
+
+    // ===== the stack (GPS board, XIAO, LoRa board) is built in its own coordinates, then turned 180 deg and placed as in the box =====
+    const stackG = new THREE.Group(); stackG.position.set(SXW, 0, SZW); stackG.rotation.y = Math.PI; scene.add(stackG); PARENT = stackG;
+    // ===== L76K GPS board (bottom of the stack). Parts face down, sockets up, long pins below =====
+    box("l76k", 17.8, 1.6, 21, std(0x1f5a3a), 0, L76_Y + 0.8, 0);
+    box("l76k", 9.7, 2.2, 10.1, M.chip, 0, L76_Y - 1.1, 2);                        // L76K module, underside
+    box("l76k", 3, 1.25, 3, M.gold, 4.5, L76_Y - 0.6, -7.5);                        // U.FL for the GPS antenna
+    [-1, 1].forEach(sd => {
+      box("l76k", 2.5, 8.5, 17.8, M.black, sd * 7.62, L76_Y + 1.6 + 4.25, -10.5 + 2.93 + 3 * 2.54);   // female sockets
+      for (let i = 0; i < 7; i++) {
+        const p = xPin(sd, i);
+        box("l76k", 0.64, L76_Y - PIN_BOT, 0.64, M.gold, p.x, (L76_Y + PIN_BOT) / 2, p.z);              // long pins below
+      }
+    });
+    decal("l76k", 17.8, 21, tex(356, 420, (g, w, h) => { g.fillStyle = "#1f5a3a"; g.fillRect(0, 0, w, h);
+      label(g, "L76K", w / 2, 150, 44, "center", "#e9f3ec", "Bricolage Grotesque"); label(g, "GNSS", w / 2, 210, 32, "center", "#e9f3ec"); }), 0, L76_Y + 1.61, 0);
+
+    // ===== XIAO ESP32-S3 =====
+    box("xiao", 17.8, 1.25, 21, std(0x2a2d31), 0, XIAO_Y + 0.625, 0);
+    const xt = XIAO_Y + 1.25;
+    decal("xiao", 17.8, 21, tex(445, 525, (g, w, h) => {
+      g.fillStyle = "#2a2d31"; g.fillRect(0, 0, w, h);
+      const s = 25, X = x => (x + 8.9) * s, Z = z => (z + 10.5) * s;
+      for (let i = 0; i < 7; i++) [-1, 1].forEach(sd => { const p = xPin(sd, i);
+        g.fillStyle = "#d3ad5f"; g.beginPath(); g.arc(X(p.x), Z(p.z), 0.8 * s, 0, 7); g.fill(); });
+      XL.forEach((n, i) => label(g, n, X(-7.62) + 26, Z(xPin(-1, i).z), 20, "left"));
+      XR.forEach((n, i) => label(g, n, X(7.62) - 26, Z(xPin(1, i).z), 20, "right"));
+    }), 0, xt + 0.01, 0);
+    box("xiao", 12, 2.0, 12, std(0xc4c8ce, { metalness: 0.55, roughness: 0.35 }), 0, xt + 1.0, 1.5);   // shield can
+    box("xiao", 9, 3.2, 7.5, M.metal, 0, xt + 1.0, -10.5 + 2.2);                                      // USB-C (overhangs 1.5 mm)
+    box("xiao", 8.6, 1.4, 3.4, M.black, 2.1, xt + 0.7, 10.5 - 2.0);                                    // B2B connector
+    // BAT pads on the underside (BAT- nearer USB)
+    const padL = { m: { x: -8.9 + 4.45, z: -10.5 + 8.26 }, p: { x: -8.9 + 4.45, z: -10.5 + 10.17 } };
+    box("load", 1.02, 0.1, 2.03, M.gold, padL.m.x, XIAO_Y - 0.05, padL.m.z);
+    box("load", 1.02, 0.1, 2.03, M.gold, padL.p.x, XIAO_Y - 0.05, padL.p.z);
+
+    // ===== Wio-SX1262 on the B2B =====
+    box("wio", 17.8, 1.6, 21.4, std(0x1b4f6a), 0, WIO_Y + 0.8, 0);
+    box("wio", 11.6, 2.95, 11, std(0xc4c8ce, { metalness: 0.55, roughness: 0.35 }), 0, WIO_Y + 1.6 + 1.47, 3);   // radio module can
+    box("wio", 3, 1.25, 3, M.gold, 3.5, WIO_Y + 1.6 + 0.6, 10.5 - 2);                                            // U.FL
+    decal("wio", 17.8, 21.4, tex(356, 428, (g, w, h) => { g.fillStyle = "#1b4f6a"; g.fillRect(0, 0, w, h);
+      label(g, "Wio-SX1262", w / 2, 60, 34, "center", "#e6f1f8", "Bricolage Grotesque"); }), 0, WIO_Y + 1.61, 0);
+
+    // ----- end of the stack group -----
+    PARENT = null; stackG.updateMatrixWorld(true);
+    const toW = (x, y, z) => [SXW - x, y, SZW - z];          // stack-local -> world (the stack is turned 180 deg, USB toward the front wall)
+
+    // ===== box outline: positions copied from cad/tracker_box_draft.FCStd (world x = X - 78, z = 72 - Y, y = height above the floor) =====
+    const outline = (key, x0, z0, x1, z1, color, h, w) => {
+      const mat = std(color, { roughness: 0.5 });
+      [[x0, z0, x1, z0], [x0, z1, x1, z1], [x0, z0, x0, z1], [x1, z0, x1, z1]].forEach(([a, b, c, d]) => {
+        const len = Math.hypot(c - a, d - b) + w;
+        const m = box(key, c !== a ? len : w, h, d !== b ? len : w, mat, (a + c) / 2, h / 2, (b + d) / 2); m.castShadow = false; });
+    };
+    outline("desk", -78, -72, 78, 72, 0x7fb2ef, 1.4, 1.4);          // outer wall line (156 x 144)
+    outline("desk", -75, -69, 75, 69, 0x4d6f99, 0.6, 0.6);          // inner wall face
+    outline("batt", -75, 30, 7, 54, 0xd9a441, 1.0, 1.0);            // battery tube, door in the left wall
+    outline("sensor", 17, -53, 67, -23, 0xd06a9a, 0.8, 0.8);        // free sensor bay
+
+    // ===== Adafruit bq24074 on 21 mm standoffs (its pins point down, jumper plugs go on underneath) =====
+    const bqC = bq(19.05, 16.51);
+    box("bq", 38.1, 1.57, 33.02, std(0x15171a), bqC.x, BQ_Y + 0.79, bqC.z);
+    const bqt = BQ_Y + 1.57;
+    decal("bq", 38.1, 33.02, tex(762, 660, (g, w, h) => {
+      g.fillStyle = "#15171a"; g.fillRect(0, 0, w, h);
+      const s = 20, X = bx => bx * s, Y = by => h - by * s;
+      [[2.54, 2.54], [35.56, 2.54], [2.54, 30.48], [35.56, 30.48]].forEach(([a, b]) => { g.fillStyle = "#d3ad5f"; g.beginPath(); g.arc(X(a), Y(b), 1.6 * s, 0, 7); g.fill();
+        g.fillStyle = "#050505"; g.beginPath(); g.arc(X(a), Y(b), 1.25 * s, 0, 7); g.fill(); });
+      BQH.forEach((n, i) => { const bx = 6.35 + i * 2.54; g.fillStyle = "#d3ad5f"; g.beginPath(); g.arc(X(bx), Y(2.54), 0.8 * s, 0, 7); g.fill();
+        g.save(); g.translate(X(bx), Y(5.0)); g.rotate(-Math.PI / 2); label(g, n, 0, 0, 15, "left"); g.restore(); });
+      label(g, "bq24074", X(19), Y(28), 34, "center", "#f2f2f2", "Bricolage Grotesque");
+      label(g, "Solar charger", X(19), Y(24.5), 22, "center", "#c8ccd2", "IBM Plex Sans");
+      label(g, "THERM", X(15.4), Y(9.2), 15, "center", "#f2b55a");
+      label(g, "LiPo Batt", X(27.5), Y(10.8), 15, "right"); label(g, "Load Out", X(27.5), Y(22.2), 15, "right");
+    }), bqC.x, bqt + 0.01, bqC.z);
+    const usbcC = bq(2.95, 10.16); box("bq", 7.9, 3.2, 8.94, M.metal, usbcC.x, bqt + 1.6, usbcC.z);
+    const jackC = bq(3.8, 21.71); box("panel", 14, 11, 8.52, M.black, jackC.x, bqt + 5.5, jackC.z);
+    const battJ = bq(33.5, 10.8), loadJ = bq(33.5, 22.2);
+    box("batt", 8.6, 4.8, 8.0, std(0xf2f2ee), battJ.x, bqt + 2.4, battJ.z);
+    box("load", 8.6, 4.8, 8.0, std(0xf2f2ee), loadJ.x, bqt + 2.4, loadJ.z);
+    for (let i = 0; i < 11; i++) { const p = bqPin(i); box("bq", 0.64, bqt + 1 - PIN_BOT, 0.64, M.gold, p.x, (bqt + 1 + PIN_BOT) / 2, p.z); }
+    box("bq", 27.94, 2.5, 2.5, M.black, bq(19.05, 2.54).x, BQ_Y - 1.25, bq(19.05, 2.54).z);
+    [[2.54, 2.54], [35.56, 2.54], [2.54, 30.48], [35.56, 30.48]].forEach(([a, b]) => { const p = bq(a, b);
+      add("bq", new THREE.CylinderGeometry(2.5, 2.5, BQ_Y, 16), std(0xf0eee8), p.x, BQ_Y / 2, p.z); });   // printed standoffs
+    const ledG = box("panel", 1.6, 0.6, 0.8, std(0xf3f3f3, { emissive: 0x2fd05a, emissiveIntensity: 0 }), bq(32.39, 15.75).x, bqt + 0.3, bq(32.39, 15.75).z);
+    const ledR = box("panel", 1.6, 0.6, 0.8, std(0xf3f3f3, { emissive: 0xff3b30, emissiveIntensity: 0 }), bq(32.39, 17.27).x, bqt + 0.3, bq(32.39, 17.27).z);
+
+    // ===== 18650 in its bay (lies along the box's long side, on foam on the hatch) =====
+    const BAT = { x: -29.1, y: 5 + 1.5 + 9.3, z: 42 };                    // on the 5 mm shelf in the battery tube (box X 14..84, Y 30)
+    const cell = add("batt", new THREE.CylinderGeometry(9.3, 9.3, 69, 32), std(0x2f6fd6, { roughness: 0.4 }), BAT.x, BAT.y, BAT.z); cell.rotation.z = Math.PI / 2;
+    const capB = add("batt", new THREE.CylinderGeometry(6, 6, 1.2, 24), M.metal, BAT.x + 35, BAT.y, BAT.z); capB.rotation.z = Math.PI / 2;
+    decal("batt", 40, 12, tex(400, 120, (g, w, h) => { label(g, "18650  2200 mAh", w / 2, h / 2, 34, "center", "#ffffff", "IBM Plex Sans"); }), BAT.x, BAT.y + 9.31, BAT.z);
+
+    // ===== wires =====
+    function wire(key, color, pts, r = 0.6) {
+      const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2])), false, "centripetal");
+      const m = add(key, new THREE.TubeGeometry(curve, 200, r, 10, false), std(color, { roughness: 0.45 }), 0, 0, 0); m.userData.isWire = true; return m;
+    }
+    const plugUnder = (key, x, z) => box(key, 2.5, 14, 2.5, M.housing, x, PIN_BOT - 4, z);   // F-F jumper housing on a pin
+    const pinBottom = (x, z) => [x, PIN_BOT - 11, z];
+    const xp = (side, i) => { const p = xPin(side, i); return toW(p.x, 0, p.z); };
+    const bp = i => { const p = bqPin(i); return [p.x, 0, p.z]; };
+    const BAY_HOLE = [7, 17, 42];                                   // 5 mm hole in the bay wall (grommet)
+
+    // GPS antenna, hanging under the lid's GPS window (beside the panel), cable to the L76K U.FL
+    const pa = { x: 55.5, z: 0 };
+    box("gpsAnt", 25, 4, 25, std(0x8a8f96), pa.x, 60.9, pa.z);       // inside the GPS tower, top just above the panel
+    box("gpsAnt", 25, 4.5, 25, std(0xd8c27a, { roughness: 0.5 }), pa.x, 65.15, pa.z);
+    decal("gpsAnt", 25, 25, tex(250, 250, (g, w, h) => { g.fillStyle = "#d8c27a"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#c2a95e"; g.fillRect(40, 40, 170, 170); g.fillStyle = "#e8d9a6"; g.beginPath(); g.arc(150, 95, 12, 0, 7); g.fill();
+      label(g, "GPS", w / 2, h / 2 + 30, 40, "center", "#3d3418", "Bricolage Grotesque"); }), pa.x, 67.41, pa.z);
+    const gUfl = toW(4.5, L76_Y - 1.4, -7.5);
+    wire("gpsAnt", C.coax, [[pa.x - 12, 60.9, pa.z - 8], [30, 55, -14], [5, 40, -24], [gUfl[0] - 3, gUfl[1] - 4, gUfl[2] + 2], gUfl], 0.55);
+
+    // LoRa: pigtail from the Wio U.FL to the SMA bulkhead in the -X wall, antenna upright outside
+    const smaX = -78, smaY = 35, smaZ = -46;
+    box("loraAnt", 3, 34, 30, std(0xf0eee8, { transparent: true, opacity: 0.85 }), smaX + 1.5, smaY, smaZ);   // piece of box wall
+    const sma = add("loraAnt", new THREE.CylinderGeometry(3.17, 3.17, 14, 20), M.brass, smaX + 1, smaY, smaZ); sma.rotation.z = Math.PI / 2;
+    const nut = add("loraAnt", new THREE.CylinderGeometry(4.6, 4.6, 1.8, 6), M.brass, smaX + 4.2, smaY, smaZ); nut.rotation.z = Math.PI / 2;
+    const wUfl = toW(3.5, WIO_Y + 2.3, 8.5);
+    wire("loraAnt", C.coax, [wUfl, [wUfl[0] - 4, wUfl[1] + 6, wUfl[2] - 2], [-40, 41, -47], [smaX + 14, smaY, smaZ], [smaX + 7, smaY, smaZ]], 0.55);
+    const elbow = add("loraAnt", new THREE.CylinderGeometry(3.4, 3.4, 12, 20), M.rubber, smaX - 9, smaY, smaZ); elbow.rotation.z = Math.PI / 2;
+    add("loraAnt", new THREE.CylinderGeometry(5.5, 6.5, 150, 24), M.rubber, smaX - 16, smaY + 75, smaZ);
+    const antTop = new THREE.Vector3(smaX - 16, smaY + 150, smaZ);
+
+    // battery lead -> through the bay hole -> BATT JST
+    wire("batt", C.red, [[BAT.x + 35.5, BAT.y + 2, BAT.z - 1.5], [6, 14, 41], [BAY_HOLE[0] + 6, 16, 41], [42, 20, 30], [battJ.x + 16, bqt + 3, battJ.z - 1], [battJ.x + 4.3, bqt + 2.4, battJ.z - 1]]);
+    wire("batt", C.black, [[BAT.x + 35.5, BAT.y - 2, BAT.z + 1.5], [6, 15, 43], [BAY_HOLE[0] + 6, 15, 43], [44, 19, 32], [battJ.x + 18, bqt + 3, battJ.z + 1], [battJ.x + 4.3, bqt + 2.4, battJ.z + 1]]);
+
+    // LOAD JST -> XIAO BAT pads (soldered, between the XIAO and the GPS board)
+    const padP = toW(padL.p.x, XIAO_Y - 0.3, padL.p.z), padM = toW(padL.m.x, XIAO_Y - 0.3, padL.m.z);
+    wire("load", C.red, [[loadJ.x + 4.3, bqt + 2.4, loadJ.z + 1], [loadJ.x + 14, bqt + 6, loadJ.z + 4], [58, 40, -18], [14, 34, -33], [padP[0] + 5, padP[1] - 2.5, padP[2]], padP]);
+    wire("load", C.black, [[loadJ.x + 4.3, bqt + 2.4, loadJ.z - 1], [loadJ.x + 16, bqt + 6, loadJ.z - 4], [60, 38, -22], [14, 33, -36], [padM[0] + 5, padM[1] - 3, padM[2]], padM]);
+
+    // battery divider, laid out flat on the floor in front of the stack:
+    //   LIPO --[R1]--(junction)-- D1 ;  junction --[R2]-- GND
+    function resistor(key, a, b) {
+      const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), dir = B.clone().sub(A).normalize(), mid = A.clone().add(B).multiplyScalar(0.5);
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      const body = add(key, new THREE.CylinderGeometry(1.25, 1.25, 6.3, 18), M.cream, mid.x, mid.y, mid.z); body.quaternion.copy(q);
+      [[-2.0, 0x8b4513], [-0.9, 0x111111], [0.2, 0x2fa84f], [2.1, 0xc9a24a]].forEach(([o, c]) => {
+        const p = mid.clone().addScaledVector(dir, o);
+        const band = add(key, new THREE.CylinderGeometry(1.3, 1.3, 0.55, 18), std(c), p.x, p.y, p.z); band.quaternion.copy(q); });
+      const e1 = mid.clone().addScaledVector(dir, -3.15), e2 = mid.clone().addScaledVector(dir, 3.15);
+      wire(key, "#b8bcc2", [[A.x, A.y, A.z], [e1.x, e1.y, e1.z]], 0.3);
+      wire(key, "#b8bcc2", [[e2.x, e2.y, e2.z], [B.x, B.y, B.z]], 0.3);
+    }
+    const lipo = bp(9), gnd10 = bp(10), d1 = xp(-1, 1);
+    const DY = 2.5, J = [-16, DY, 4], R1a = [8, DY, 4], R1b = [-8, DY, 4], R2a = [-16, DY, 11], R2b = [-16, DY, 23];
+    plugUnder("divider", lipo[0], lipo[2]); plugUnder("divider", gnd10[0], gnd10[2]); plugUnder("divider", d1[0], d1[2]);
+    resistor("divider", R1a, R1b); resistor("divider", R2a, R2b);
+    wire("divider", "#b8bcc2", [R1b, J], 0.3); wire("divider", "#b8bcc2", [J, R2a], 0.3);
+    add("divider", new THREE.SphereGeometry(1.9, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffd25a }), ...J);
+    wire("divider", C.orange, [pinBottom(lipo[0], lipo[2]), [lipo[0], 1.6, lipo[2] + 0.5], [lipo[0] - 8, DY, 10], [18, DY, 5], R1a]);
+    wire("divider", C.orange, [J, [-19, DY, -4], [-6, DY, -20], [d1[0] - 0.5, 1.6, d1[2] + 2], pinBottom(d1[0], d1[2])]);
+    wire("divider", C.black, [R2b, [-16, DY, 25], [24, DY, 24.5], [gnd10[0] + 2, DY, 21], [gnd10[0], 1.6, gnd10[2] + 0.5], pinBottom(gnd10[0], gnd10[2])]);
+
+    // NTC: THERM (header 2) and GND (header 1) -> bead taped on the battery (through the bay hole)
+    const th = bp(2), g1 = bp(1);
+    plugUnder("ntc", th[0], th[2]); plugUnder("ntc", g1[0], g1[2]);
+    const bead = new THREE.Vector3(BAT.x + 12, BAT.y + 9.7, BAT.z);
+    add("ntc", new THREE.SphereGeometry(1.6, 16, 12), std(0x1c1c1c), bead.x, bead.y, bead.z);
+    box("ntc", 10, 0.3, 6, std(0xf1d36b, { transparent: true, opacity: 0.85 }), bead.x, bead.y + 1.2, bead.z);   // tape
+    wire("ntc", C.purple, [pinBottom(th[0], th[2]), [th[0], 1.6, th[2] + 0.5], [th[0] - 6, 3, 30], [BAY_HOLE[0] + 6, 14, 42.5], [BAY_HOLE[0] - 4, 15, 42.5], [bead.x + 4, bead.y + 0.5, bead.z + 1], [bead.x, bead.y, bead.z + 1]], 0.45);
+    wire("ntc", C.black, [pinBottom(g1[0], g1[2]), [g1[0], 1.6, g1[2] + 0.5], [g1[0] - 8, 3.4, 31], [BAY_HOLE[0] + 6, 15.5, 41.5], [BAY_HOLE[0] - 4, 16, 41.5], [bead.x + 4, bead.y + 0.5, bead.z - 1], [bead.x, bead.y, bead.z - 1]], 0.45);
+
+    // STEMMA QT sensor board in the sensor bay, 4 wires: 3V3, GND, SDA = D4, SCL = D5
+    const sX = 42, sZ = -38;
+    box("sensor", 25.4, 1.6, 17.8, std(0x1b2b6f), sX, 2.0, sZ);
+    box("sensor", 6, 2.9, 4.5, std(0xf2f2ee), sX - 9.5, 4.2, sZ);
+    box("sensor", 3, 1, 3, M.chip, sX + 3, 3.3, sZ);
+    decal("sensor", 25.4, 17.8, tex(508, 356, (g, w, h) => { g.fillStyle = "#1b2b6f"; g.fillRect(0, 0, w, h);
+      label(g, "Sensor", 330, 120, 50, "center", "#e8ecff", "Bricolage Grotesque"); label(g, "STEMMA QT", 330, 220, 34, "center", "#c8d0ff"); }), sX, 2.81, sZ);
+    [[1, 2, C.red], [1, 1, C.black], [-1, 4, C.blue], [-1, 5, C.yellow]].forEach(([sd, i, col], j) => {
+      const p = xp(sd, i);
+      plugUnder("sensor", p[0], p[2]);
+      wire("sensor", col, [pinBottom(p[0], p[2]), [p[0], 1.6, p[2] + 0.3], [p[0] + 3, 2 + j * 0.4, -21 - j], [12, 2.2 + j * 0.3, -22 - j], [sX - 20, 3 + j * 0.3, sZ - 1.5 + j], [sX - 12.5, 4.2, sZ - 1.5 + j]], 0.45);
+    });
+
+    // Solar panel = the lid. Drawn beside the box (behind it) so the inside stays visible. Cable -> adapter -> DC jack.
+    const pX = -18.5, pZ = -165;
+    box("panel", 112, 2.7, 136, std(0x111a33, { roughness: 0.35, metalness: 0.2 }), pX, 7.35, pZ);
+    box("panel", 30, 5, 30, M.black, pX, 3.5, pZ);
+    decal("panel", 112, 136, tex(560, 680, (g, w, h) => { g.fillStyle = "#16224a"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "rgba(170,190,255,.35)"; g.lineWidth = 3;
+      for (let x = 20; x < w; x += 90) for (let y = 20; y < h; y += 80) g.strokeRect(x, y, 80, 72);
+      label(g, "6 V  2 W", w / 2, h - 30, 30, "center", "#cfd8ff", "IBM Plex Sans"); }), pX, 8.71, pZ);
+    for (let i = 0; i < 4; i++) box("panel", 6, 6, 6, std(0x7a7f86), pX + (i < 2 ? -50 : 50), 3, pZ + (i % 2 ? 60 : -60));
+    const adX = jackC.x - 24;
+    box("panel", 16, 7, 8, M.black, adX, bqt + 5.5, jackC.z);                         // adapter 3.5x1.1 -> 5.5x2.1
+    wire("panel", "#c0392b", [[pX, 4, pZ + 16], [pX + 30, 30, -110], [35, 62, -60], [-4, 48, -10], [adX - 14, bqt + 5.5, jackC.z], [adX - 7, bqt + 5.5, jackC.z]], 1.6);
+    wire("panel", "#202020", [[adX + 8, bqt + 5.5, jackC.z], [jackC.x - 7, bqt + 5.5, jackC.z]], 1.4);
+
+    // ===== Waterproof panel USB-C sockets (a piece of box wall each) + pigtail to the board's USB-C =====
+    function panelUsb(key, x, y, z, ax, out) {
+      const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
+      const parts = [new THREE.Mesh(new THREE.BoxGeometry(3, 34, 34), std(0xf0eee8, { transparent: true, opacity: 0.85 }))];
+      const cyl = (r, len, mat, off) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 32), mat); m.rotation.z = Math.PI / 2; m.position.x = off; return m; };
+      parts.push(cyl(10, 24, std(0x2b2f35), -out * 13.5));
+      parts.push(cyl(12, 3, std(0x2b2f35), out * 3));
+      const hex = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 2.5, 6), std(0x3a3f45)); hex.rotation.z = Math.PI / 2; hex.position.x = -out * 3; parts.push(hex);
+      const face = new THREE.Mesh(new THREE.BoxGeometry(1, 3.4, 9.2), std(0x0d0e10)); face.position.x = out * 4.6; parts.push(face);
+      const tongue = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 6.6), M.gold.clone()); tongue.position.x = out * 4.5; parts.push(tongue);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 4, 24), std(0x1c1d20, { roughness: 0.9 })); cap.rotation.z = Math.PI / 2; cap.position.set(out * 7, -13, 0); parts.push(cap);
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(1, 10, 2), std(0x1c1d20)); strap.position.set(out * 5.5, -7, 0); parts.push(strap);
+      parts.forEach(m => { m.castShadow = true; m.receiveShadow = true; g.add(m); reg(key, m); });
+      if (ax === "z") g.rotation.y = Math.PI / 2;
+      return g;
+    }
+    function usbPlug(key, x, y, z, dirX, dirZ) {
+      const ang = Math.atan2(dirX, dirZ);
+      const body = box(key, 12, 6.5, 20, std(0x2b2f35), x - dirX * 10, y, z - dirZ * 10); body.rotation.y = ang;
+      const tip = box(key, 8.3, 2.6, 6.5, M.metal, x + dirX * 3, y, z + dirZ * 3); tip.rotation.y = ang;
+    }
+    // #1: front wall (box -Y wall, X 119, 29 mm up), outside toward you; cable -> charger USB-C (opening faces -X)
+    const u1 = { x: 41, y: 29, z: 70.5 };
+    panelUsb("usb1", u1.x, u1.y, u1.z, "z", -1);
+    usbPlug("usb1", usbcC.x - 4.5, bqt + 1.6, usbcC.z, 1, 0);
+    wire("usb1", "#2b2f35", [[u1.x, u1.y, u1.z - 25], [u1.x - 2, u1.y - 2, 32], [6, bqt + 1, 18], [-2, bqt + 1.6, usbcC.z], [usbcC.x - 21, bqt + 1.6, usbcC.z]], 1.6);
+    // #2: left wall (box -X wall, Y 84, 27 mm up), outside to the left; cable -> XIAO USB-C (faces the front after the 180 deg turn)
+    const u2 = { x: -76.5, y: 27, z: -12 };
+    panelUsb("usb2", u2.x, u2.y, u2.z, "x", -1);
+    const xUsb = toW(0, xt + 1.0, -10.5 - 1.5);
+    usbPlug("usb2", xUsb[0], xUsb[1], xUsb[2] + 4.5, 0, -1);
+    wire("usb2", "#2b2f35", [[u2.x + 25.5, u2.y, u2.z], [-40, 30, -4], [xUsb[0] - 4, xUsb[1], xUsb[2] + 26], [xUsb[0], xUsb[1], xUsb[2] + 23.5]], 1.6);
+
+    // Radio waves for the running step
+    const waves = [];
+    for (let k = 0; k < 4; k++) { const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.4, 8, 64),
+      new THREE.MeshBasicMaterial({ color: 0x6fa8ff, transparent: true, opacity: 0, depthWrite: false }));
+      ring.rotation.x = Math.PI / 2; ring.position.set(antTop.x, smaY + 90, antTop.z); ring.visible = false; scene.add(ring); waves.push(ring); }
+
+    // ---------- floating labels ----------
+    const T = (text, p, part = true, color) => ({ text, pos: new THREE.Vector3(p[0], p[1], p[2]), part, color });
+    const d4 = xp(-1, 4), d5 = xp(-1, 5);
+    const tags = {
+      wio: T("LoRa radio (Wio-SX1262)", toW(14, WIO_Y + 9, 4)), xiao: T("XIAO ESP32-S3", toW(-16, XIAO_Y + 3, -8)), l76k: T("GPS board (L76K)", toW(0, L76_Y - 4, 12)),
+      gpsAnt: T("GPS antenna (in the lid tower)", [pa.x, 76, pa.z]), loraAnt: T("915 MHz antenna", [antTop.x, antTop.y + 8, antTop.z]),
+      sma: T("SMA through the box wall", [smaX + 2, smaY + 20, smaZ]), bq: T("Solar charger (bq24074)", [bqC.x, bqt + 18, bqC.z - 4]),
+      batt: T("18650 battery (slides out through the side door)", [BAT.x, 30, BAT.z]), panel: T("Solar panel: sits 10 mm above the lid (drawn beside the box)", [pX, 20, pZ]),
+      sensor: T("Sensor bay (I2C)", [sX, 14, sZ]), boxL: T("box floor 156 × 144 mm", [52, 2, 76]),
+      battJ: T("LiPo Batt", [battJ.x, bqt + 10, battJ.z], false, C.red), loadJ: T("Load Out", [loadJ.x, bqt + 10, loadJ.z], false, C.red),
+      pads: T("BAT+ / BAT− pads", toW(padL.p.x - 2, XIAO_Y - 2, padL.p.z + 6), false, C.red),
+      lipo: T("1 · LIPO pin (battery +)", [lipo[0] - 12, 4, lipo[2] + 12], false, C.orange), d1: T("3 · D1", [d1[0] + 6, 4, d1[2] + 6], false, C.orange),
+      r1: T("R1 · 1 MΩ", [0, 8, 0], false, "#e9e1cf"), r2: T("4 · R2 · 1 MΩ", [-16, 8, 18], false, "#e9e1cf"),
+      junc: T("2 · junction = half the battery voltage", [J[0], 7, J[2] - 2], false, "#ffd25a"),
+      gndD: T("GND pin", [gnd10[0] + 14, 4, gnd10[2] + 16], false, C.black),
+      therm: T("THERM", [th[0] - 6, 4, th[2] + 10], false, C.purple), bead: T("NTC on the battery", [bead.x, bead.y + 10, bead.z], false, C.purple),
+      d4: T("D4 SDA", [d4[0] + 7, 2, d4[2]], false, C.blue), d5: T("D5 SCL", [d5[0] + 7, 2, d5[2] - 4], false, C.yellow),
+      jack: T("DC jack 5.5×2.1", [jackC.x, bqt + 18, jackC.z], false, "#202020"), adapter: T("adapter", [adX, bqt + 14, jackC.z], false, "#202020"),
+      usb1: T("USB-C #1: charge (power only)", [u1.x, u1.y + 22, u1.z]), usb1in: T("charger's USB-C", [usbcC.x - 8, bqt + 12, usbcC.z], false, "#c0392b"),
+      usb2: T("USB-C #2: program the XIAO", [u2.x, u2.y + 22, u2.z]), usb2in: T("XIAO USB-C", [xUsb[0], xUsb[1] + 9, xUsb[2] + 4], false, "#8a4fd0")
+    };
+    let activeTags = [];
+    function setTags(list) {
+      labelLayer.innerHTML = "";
+      activeTags = list.map(t => { const el = document.createElement("div"); el.className = "tag" + (t.part ? " part" : "");
+        el.innerHTML = (t.color ? `<i style="background:${t.color}"></i>` : "") + t.text; labelLayer.appendChild(el); return { el, pos: t.pos }; });
+    }
+
+    // ---------- camera ----------
+    let tween = null, viewUnder = false;
+    function flyTo(pos, target) {
+      if (viewUnder) { pos = pos.clone(); pos.y = target.y - Math.abs(pos.y - target.y); target = target.clone(); target.y = Math.min(target.y, 6); }
+      const narrow = stage.clientWidth / Math.max(1, stage.clientHeight) < 1.05;
+      if (narrow) pos = target.clone().add(pos.clone().sub(target).multiplyScalar(1.45));
+      if (reduceMotion) { camera.position.copy(pos); controls.target.copy(target); return; }
+      tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, t: performance.now() };
+    }
+    const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+    const VIEWS = {
+      overview: [V3(60, 430, 330), V3(0, 20, -40)],
+      wio: [V3(35, 110, 40), V3(SXW, 36, SZW)], l76k: [V3(45, 60, 20), V3(SXW, 20, SZW)], gpsAnt: [V3(80, 170, 110), V3(22, 32, -16)],
+      loraAnt: [V3(40, 210, 120), V3(-45, 60, -45)], batt: [V3(40, 150, 170), V3(10, 12, 25)], load: [V3(95, 140, 90), V3(25, 25, -18)],
+      divider: [V3(14, 170, 110), V3(16, 2, 2)], ntc: [V3(50, 140, 160), V3(5, 10, 28)], sensor: [V3(55, 150, 60), V3(18, 5, -36)],
+      panel: [V3(110, 320, 80), V3(0, 10, -90)],
+      usb1: [V3(-40, 150, 190), V3(28, 25, 30)], usb2: [V3(-110, 150, 90), V3(-40, 28, -15)], run: [V3(60, 430, 330), V3(0, 30, -40)]
+    };
+    camera.position.copy(VIEWS.overview[0]); controls.target.copy(VIEWS.overview[1]);
+    function setView(u) { viewUnder = u; $("viewTop").setAttribute("aria-pressed", String(!u)); $("viewUnder").setAttribute("aria-pressed", String(u)); applyStep(current); }
+    $("viewTop").addEventListener("click", () => setView(false));
+    $("viewUnder").addEventListener("click", () => setView(true));
+
+    // Build order: keys that exist "before" a step are shown solid, the current key is highlighted, later keys are faded.
+    const ORDER = ["wio", "l76k", "gpsAnt", "loraAnt", "batt", "load", "divider", "ntc", "sensor", "panel", "usb1", "usb2"];
+    const BASE = ["xiao", "bq", "desk"];
+    const TAGSETS = {
+      wio: ["wio", "xiao"], l76k: ["l76k", "xiao", "wio"], gpsAnt: ["gpsAnt", "l76k"], loraAnt: ["loraAnt", "sma", "wio"],
+      batt: ["batt", "battJ", "bq"], load: ["loadJ", "pads", "xiao"], divider: ["lipo", "r1", "junc", "r2", "d1", "gndD"], ntc: ["therm", "bead"],
+      sensor: ["sensor", "d4", "d5"], panel: ["panel", "adapter", "jack"], usb1: ["usb1", "usb1in", "bq"], usb2: ["usb2", "usb2in", "xiao"]
+    };
+    let running = false;
+    function applyStep(k) {
+      const st = STEPS[k];
+      const curIdx = st.key ? ORDER.indexOf(st.key) : (st.run ? ORDER.length : -1);
+      Object.entries(byKey).forEach(([key, meshes]) => {
+        const idx = ORDER.indexOf(key);
+        let opacity = 1, glow = false;
+        if (k === 0) opacity = 1;
+        else if (BASE.includes(key)) opacity = 1;
+        else if (idx === curIdx) glow = true;
+        else if (idx > curIdx) opacity = 0.1;
+        meshes.forEach(m => { if (key === "desk") return; const mt = m.material;
+          mt.transparent = opacity < 1 || mt.userData.keepTransparent; mt.opacity = opacity; mt.depthWrite = opacity === 1;
+          if (mt.emissive && !m.userData.isLed && !m.userData.isWire) mt.emissive.setHex(glow ? 0x1c1608 : 0x000000); });
+      });
+      running = !!st.run;
+      waves.forEach(r => r.visible = running);
+      ledG.material.emissiveIntensity = running || st.key === "panel" ? 1.6 : 0;
+      ledR.material.emissiveIntensity = running || st.key === "panel" ? 1.4 : 0;
+      const v = VIEWS[st.key] || (st.run ? VIEWS.run : VIEWS.overview);
+      flyTo(v[0].clone(), v[1].clone());
+      setTags(st.key ? TAGSETS[st.key].map(n => tags[n]) : [tags.wio, tags.xiao, tags.l76k, tags.bq, tags.batt, tags.panel, tags.gpsAnt, tags.loraAnt, tags.sensor, tags.boxL]);
+    }
+    [ledG, ledR].forEach(l => l.userData.isLed = true);
+
+    // click a part or wire to jump to its step
+    const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); let down = null;
+    canvas.addEventListener("pointerdown", e => { down = [e.clientX, e.clientY]; tween = null; });
+    canvas.addEventListener("pointerup", e => {
+      if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+      const r = canvas.getBoundingClientRect();
+      mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(mouse, camera);
+      const hit = ray.intersectObjects(Object.entries(byKey).filter(([k]) => ORDER.includes(k)).flatMap(([, m]) => m))[0];
+      if (hit) { const s = STEPS.findIndex(x => x.key === hit.object.userData.key); if (s > 0) setStep(s); }
+    });
+
+    function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    new ResizeObserver(resize).observe(stage); resize();
+
+    const v = new THREE.Vector3();
+    (function loop(now) {
+      requestAnimationFrame(loop);
+      if (tween) { const q = Math.min(1, (now - tween.t) / 900), e = q < .5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2;
+        camera.position.lerpVectors(tween.p0, tween.p1, e); controls.target.lerpVectors(tween.t0, tween.t1, e); if (q === 1) tween = null; }
+      if (running) {
+        const phase = (now % 4000) / 4000;                    // one short burst every few "minutes" (sped up)
+        waves.forEach((r, j) => { const t = reduceMotion ? (j + 1) / 5 : (phase * 2.2 + j * 0.12);
+          const on = t < 1; r.visible = on; if (!on) return;
+          r.scale.setScalar(6 + t * 90); r.material.opacity = 0.55 * (1 - t); });
+      }
+      controls.update();
+      desk.visible = camera.position.y > 0.5;
+      renderer.render(scene, camera);
+      const w = stage.clientWidth, h = stage.clientHeight;
+      activeTags.forEach(t => { v.copy(t.pos).project(camera);
+        const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1; t.el.hidden = !vis;
+        t.el.style.left = ((v.x + 1) / 2 * w) + "px"; t.el.style.top = ((1 - v.y) / 2 * h - 6) + "px"; });
+    })(performance.now());
+
+    return { applyStep };
+  }
+})();
+</script>
