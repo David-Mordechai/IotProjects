@@ -1,6 +1,6 @@
 # Electronics Inventory
 
-_Last updated: 2026-11-11_
+_Last updated: 2026-11-15_
 
 ## Microcontrollers
 
@@ -102,7 +102,7 @@ _Last updated: 2026-11-11_
   | 7 | MISO | D19 |
   | 8 | GDO2 | D22 (needed for sending)* |
 
-  \* D4 is also suggested for the RCWL-0516; if you use both, move the RCWL-0516 to D21. GDO2 is required by RadioLib's `transmit()`. Don't use D2 for it: D2 is the onboard LED and a boot pin.
+  \* D4 is also suggested for the RCWL-0516; if you use both, move the RCWL-0516 to D33 (an RTC pin, so motion can wake the ESP32 from deep sleep; D21 can't). GDO2 is required by RadioLib's `transmit()`. Don't use D2 for it: D2 is the onboard LED and a boot pin.
 - **Libraries:** `SmartRC-CC1101-Driver-Lib` (ELECHOUSE, many examples) or `RadioLib` (more advanced).
 - **Header pitch:** 2.54 mm, so standard female-to-female jumper wires fit.
 - **Legal:** 433 MHz is a license-free (ISM) band in most countries, but only at low power and with local rules. Stick to the library's default power settings.
@@ -115,14 +115,33 @@ _Last updated: 2026-11-11_
 
 **Tools owned:** none yet (no multimeter, no soldering iron).
 
+## On order (Amazon, ordered 2026-11-14, not yet received)
+
+Checked in the Amazon order history on 2026-11-15. Two orders:
+
+| Item | Order | Arriving | For |
+|---|---|---|---|
+| REXQualis Electronics Component Fun Kit (830 breadboard, PN2222 NPN (E-B-C), 1 kΩ ×10, 20 M-F + 65 M-M jumpers, buzzer, LEDs…) | 1 | Nov 29 | Breadboard, transistor + resistor for the home-station buzzer |
+| BOJACK breadboards: 2× 830 + 2× 400, 126 jumper wires | 1 | Nov 26 – Dec 4 | One breadboard per box (node + home) |
+| ELEGOO 120 Dupont wires (40 each M-F, M-M, F-F, 20 cm) | 1 | Nov 29 | ESP32 pin → breadboard (M-F) |
+| PINECIL USB-C soldering iron (no power supply included; the user has a USB-C PD charger) | 1 | Nov 29 | Soldering the LED/buzzer board's pads |
+| KAIWEETS HT118A multimeter (auto-ranging, 6000 counts, 600 µA / 6000 µA / mA / 10 A ranges) | 2 | Nov 29 | Wire/polarity checks, continuity, sleep-current measurement |
+| MAIYUM 63/37 rosin-core solder, 0.8 mm, 100 g (contains lead: wash hands) | 2 | Nov 29 | Soldering |
+| Glarks 70× 2.54 mm male pin headers (10 mm and 17 mm pins) | 2 | Nov 29 | Pins for the LED/buzzer board's pads |
+| innhom 650 pcs heat-shrink tubing (2:1) | 2 | Nov 29 | Insulating soldered joints |
+| KAIWEETS 6" flush cutters with stripping holes | 2 | Nov 26 | Cutting/stripping wire, trimming legs |
+
+Order 1: ILS 262.57. Order 2: ILS 324.93, of which ILS 63.81 import charges + ILS 9.08 exchange fee: goods $79.35 > $75 VAT-free limit).
+
+Move these into the tables above when they arrive. Build guide: `guides/station-build-3d.html`.
+
 ## Needed / not yet owned
 
 | Priority | Part | Why |
 |----------|------|-----|
-| ⭐ High | **Multimeter** (basic, about $10–15) | Check voltages and find pins (e.g. CC1101 pin 1), and debug "why doesn't it work?" moments. |
-| ⭐ High | **Breadboard** (830 points) + **male-to-male** and **male-to-female** jumper wires | Build circuits without soldering. Female-female wires can't plug into a breadboard. |
-| Medium | **NPN transistor** (2N2222 / S8050 / BC547) + **1 kΩ resistor**, or a beginner component kit | Drive the 5 V buzzer safely from the ESP32. |
-| Medium | **Soldering iron** (a basic temperature-controlled one) + solder | The buzzer/LED board has solder pads, not pins, so wires must be soldered on. |
+| Later | **USB logic analyzer** 24 MHz 8 ch (e.g. HiLetgo, ~$13) | See the CC1101's SPI signals in PulseView (`OPEN_ISSUES.md` issue 1). |
+
+Multimeter, breadboards, jumpers, transistor + resistor and soldering tools: on order (see above).
 
 ---
 _Source: package label "ESP-WROOM-32 ESP32-S Development Board Type C ... Color: Type C 30PIN", manufacturer Zhejiang Tianya Tongxing Technology Co., item no. 1049926807163._

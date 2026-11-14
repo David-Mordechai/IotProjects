@@ -1,0 +1,570 @@
+<title>Sensor Station</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Final setup of the small-steps ladder: outside node + home station, with a looping "what happens" animation. */
+:root {
+  --bg: #eceff2; --panel: #fbfcfd; --ink: #161a1f; --muted: #5a6470; --line: #d5dbe2;
+  --accent: #a85a14; --accent-soft: #f4e4d3; --stage-a: #dde3e9; --stage-b: #c9d1da; --danger: #b42318;
+  --log-bg: #11161b; --log-ink: #cfe3d4;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+    --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+    --log-bg: #080b0e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+  --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+  --log-bg: #080b0e; color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 400px; }
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 40% 30%, var(--stage-a), var(--stage-b)); }
+#scene { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#scene:active { cursor: grabbing; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; transform: translate(-50%, -100%); white-space: nowrap;
+  font: 600 12px/1 var(--font-body); padding: 5px 8px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
+.tag.live { font: 700 12px/1 var(--font-mono); border-color: var(--accent); }
+.tag.zone { font: 700 13px/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.hint { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 6px; opacity: .92; }
+.rail { min-width: 0; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line);
+  padding-block: 22px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px; }
+.eyebrow { font: 600 11px/1 var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 26px/1.12 var(--font-display); margin: 8px 0 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 600 13px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+.card .count { font: 500 12px/1 var(--font-mono); color: var(--muted); }
+.card h3 { margin: 0; font: 700 20px/1.2 var(--font-display); }
+.card p { margin: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.controls label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.controls input[type=range] { width: 150px; accent-color: var(--accent); }
+.controls output { font: 700 12px/1 var(--font-mono); min-width: 52px; }
+button { font: 600 14px/1 var(--font-body); border-radius: 8px; padding: 10px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.phases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.phases li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 7px 10px; border-radius: 8px; border: 1px solid transparent; font-weight: 500; }
+.phases li .n { font: 700 12px/1.6 var(--font-mono); color: var(--muted); }
+.phases li.on { background: var(--accent-soft); border-color: var(--accent); }
+.log { background: var(--log-bg); color: var(--log-ink); border-radius: 8px; padding: 10px 12px; font: 500 11.5px/1.55 var(--font-mono);
+  height: 190px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.log .home { color: #9cc7ff; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.mono { font-family: var(--font-mono); font-weight: 700; font-size: 12px; }
+td .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid rgb(127 127 127 / .6); }
+.small { font-size: 13px; color: var(--muted); }
+.acc ul { margin: 6px 0 12px; padding-left: 18px; }
+.acc li { margin: 3px 0; }
+.acc .ok { font-weight: 600; }
+.acc .simp { color: var(--muted); font-weight: 600; }
+.buy { color: var(--danger); font-weight: 600; }
+.err { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
+  html, body { height: auto; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="scene" aria-label="3D model of the outside sensor node and the home station, with an animation of one detection cycle"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan</div>
+  </div>
+
+  <aside class="rail">
+    <header>
+      <div class="eyebrow">Final setup · steps 1–6 combined</div>
+      <h1>Sensor station: outside node + home station</h1>
+    </header>
+
+    <section class="card" aria-live="polite">
+      <div class="count" id="phaseCount"></div>
+      <h3 id="phaseTitle"></h3>
+      <p id="phaseBody"></p>
+      <div class="controls">
+        <button id="play" type="button" class="primary">Pause</button>
+        <label><input type="checkbox" id="auto" checked> Auto visitor</label>
+        <label>Distance <input type="range" id="dist" min="20" max="420" step="5" value="180"><output id="distOut">180 cm</output></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>One cycle</h2>
+      <ol class="phases" id="phases"></ol>
+    </section>
+
+    <section>
+      <h2>Serial output (both boards)</h2>
+      <div class="log" id="log" aria-live="off"></div>
+    </section>
+
+    <section>
+      <h2>Outside node wiring</h2>
+      <table><thead><tr><th>Wire</th><th>ESP32</th><th>Part pin</th></tr></thead><tbody id="connNode"></tbody></table>
+      <p class="small">The node needs 3 grounds and 2 parts on 3V3, but the HW-394 has only one 3V3 pin and two GND pins. A small breadboard's power rails share them. <span class="buy">Needs the breadboard (not owned yet).</span></p>
+    </section>
+
+    <section>
+      <h2>Home station wiring</h2>
+      <table><thead><tr><th>Wire</th><th>ESP32</th><th>Part pin</th></tr></thead><tbody id="connHome"></tbody></table>
+      <p class="small">The buzzer's BB- pin sits at 5 V when off, so it goes through an NPN transistor, never straight to a GPIO. <span class="buy">Needs a breadboard, an NPN transistor and a 1 kΩ resistor.</span> Exact holes, step by step: <a href="home-breadboard-3d.html">home-breadboard-3d.html</a>.</p>
+    </section>
+
+    <section class="acc">
+      <h2>How accurate is this model?</h2>
+      <span class="ok">Matches the plan</span>
+      <ul>
+        <li>ESP32 pin names and order, the CC1101 pinout (D4, D5, D18, D19, D22, D23) and the HC-SR04 pins (D25, D26), as in the wiring guides.</li>
+        <li>Radar OUT on <b>D33</b>, not D21: deep-sleep wake (ext0) works only on RTC pins (GPIO 0, 2, 4, 12–15, 25–27, 32–39).</li>
+        <li>WS2812 data on D13 and its power from VIN (5 V); buzzer driven through a transistor on D12.</li>
+        <li>Distance math: echo time ÷ 58 = cm.</li>
+      </ul>
+      <span class="simp">Simplified</span>
+      <ul>
+        <li>Not to scale: the visitor is a small token, and 1 cm of distance is drawn as 0.45 mm.</li>
+        <li>Wires are drawn from the top of each pin and arc over; real jumpers plug in under the board.</li>
+        <li>Part shapes are approximate blocks; the 3D wiring guides have the exact layouts.</li>
+        <li>Timing is slowed down. A real cycle takes well under a second.</li>
+        <li>Deep sleep on the HW-394 still draws several mA (its regulator and USB chip stay on), so a power bank lasts days, not months. Real battery life needs a bare low-power board later.</li>
+      </ul>
+    </section>
+  </aside>
+</div>
+
+<!-- Three.js r128, stored locally in ./lib so the page works offline -->
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+(function () {
+  const LEFT  = ["EN","VP","VN","D34","D35","D32","D33","D25","D26","D27","D14","D12","D13","GND","VIN"];
+  const RIGHT = ["D23","D22","TX0","RX0","D21","D19","D18","D5","D17","D16","D4","D2","D15","GND","3V3"];
+  const pinZ = i => -16 + i * 2.54;
+  const L = n => ({ side: -1, i: LEFT.indexOf(n), name: n });
+  const R = n => ({ side: 1, i: RIGHT.indexOf(n), name: n });
+
+  const C = { gnd: "#1e1e1e", v33: "#d62a2a", v5: "#ff7a7a", sck: "#f0c419", mosi: "#2fa84f", miso: "#2f6fd6",
+              csn: "#8a4fd0", gdo0: "#ef7d22", gdo2: "#e6e6e6", trig: "#c9b400", echo: "#16a37a", out: "#e05bb5", data: "#3fb7e0", base: "#8f6b3a" };
+
+  // CC1101 wires (same on both boxes). to: CC1101 header pin number.
+  const CC_WIRES = [
+    { esp: R("D23"), to: 6, color: C.mosi, name: "Green", part: "MOSI (6)" },
+    { esp: R("D22"), to: 8, color: C.gdo2, name: "White", part: "GDO2 (8)" },
+    { esp: R("D19"), to: 7, color: C.miso, name: "Blue", part: "MISO (7)" },
+    { esp: R("D18"), to: 5, color: C.sck, name: "Yellow", part: "SCK (5)" },
+    { esp: R("D5"),  to: 4, color: C.csn, name: "Purple", part: "CSN (4)" },
+    { esp: R("D4"),  to: 3, color: C.gdo0, name: "Orange", part: "GDO0 (3)" }
+  ];
+
+  const PHASES = [
+    { t: "Sleeping", b: "The node's ESP32 is in deep sleep and its radio is off. Only the radar keeps watching, using ~3 mA." },
+    { t: "Radar sees motion", b: "The RCWL-0516 sets OUT to 3.3 V. That pin (D33) is an RTC pin, so it can wake the ESP32 from deep sleep." },
+    { t: "Measure the distance", b: "The ESP32 pulses Trig for 10 µs. The HC-SR04 sends a 40 kHz ping and holds Echo high until it hears the echo. cm = µs ÷ 58." },
+    { t: "Send by radio", b: "The CC1101 sends a short message at 434 MHz: event, distance, battery voltage. About 20 bytes." },
+    { t: "Home station reacts", b: "The home ESP32 receives it, colours the WS2812 LEDs (green far, yellow mid, red close) and beeps when someone is under 1 m." },
+    { t: "Acknowledge", b: "Home answers \"ack\". If the node hears no ack, it sends again, so no event is lost." },
+    { t: "Back to sleep", b: "The node turns its radio and sensor off and sleeps until the radar fires again." }
+  ];
+  const DUR = [2200, 900, 1500, 1500, 1500, 1000, 1100];
+
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), canvas = $("scene"), labelLayer = $("labels");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- Rail ----------
+  $("phases").innerHTML = PHASES.map((p, k) => `<li id="ph-${k}"><span class="n">${k + 1}</span><span>${p.t}</span></li>`).join("");
+  const row = (color, name, esp, part) => `<tr><td><span class="sw" style="background:${color}"></span>${name}</td><td class="mono">${esp}</td><td class="mono">${part}</td></tr>`;
+  const NODE_TABLE = [
+    [C.out, "Pink", "D33", "RCWL OUT"], [C.v5, "Pink-red", "VIN (5 V)", "RCWL VIN"],
+    [C.trig, "Gold", "D25", "HC-SR04 Trig"], [C.echo, "Teal", "D26", "HC-SR04 Echo"],
+    ...CC_WIRES.map(w => [w.color, w.name, w.esp.name, "CC1101 " + w.part]),
+    [C.v33, "Red", "3V3 → + rail", "CC1101 VCC, HC-SR04 Vcc"],
+    [C.gnd, "Black", "GND → − rail", "CC1101, HC-SR04, RCWL GND"]
+  ];
+  const HOME_TABLE = [
+    ...CC_WIRES.map(w => [w.color, w.name, w.esp.name, "CC1101 " + w.part]),
+    [C.v33, "Red", "3V3", "CC1101 VCC (2)"], [C.gnd, "Black", "GND (right row)", "CC1101 GND (1)"],
+    [C.data, "Cyan", "D13", "WS2812 INPUT"], [C.v5, "Pink-red", "VIN (5 V)", "WS2812 +5V"],
+    [C.base, "Brown", "D12 → 1 kΩ", "transistor base"], [C.gnd, "Black", "GND (left row) → − rail", "WS2812 GND, transistor emitter"],
+    ["#ef7d22", "Orange", "—", "BB- → transistor collector"]
+  ];
+  $("connNode").innerHTML = NODE_TABLE.map(r => row(...r)).join("");
+  $("connHome").innerHTML = HOME_TABLE.map(r => row(...r)).join("");
+
+  const logEl = $("log");
+  function log(who, text) {
+    const line = document.createElement("div");
+    if (who === "home") line.className = "home";
+    line.textContent = `[${who}] ${text}`;
+    logEl.appendChild(line);
+    while (logEl.childElementCount > 60) logEl.firstChild.remove();
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  let playing = !reduceMotion;
+  $("play").textContent = playing ? "Pause" : "Play";
+  $("play").addEventListener("click", () => { playing = !playing; $("play").textContent = playing ? "Pause" : "Play"; });
+  $("dist").addEventListener("input", () => { $("distOut").textContent = $("dist").value + " cm"; $("auto").checked = false; });
+
+  function showPhase(k) {
+    $("phaseCount").textContent = `Phase ${k + 1} of ${PHASES.length}`;
+    $("phaseTitle").textContent = PHASES[k].t;
+    $("phaseBody").textContent = PHASES[k].b;
+    PHASES.forEach((_, j) => $("ph-" + j).classList.toggle("on", j === k));
+  }
+  showPhase(0);
+
+  if (!window.THREE || !THREE.OrbitControls) {
+    stage.insertAdjacentHTML("beforeend", '<div class="err">The 3D view could not load. Make sure the lib folder (three.min.js and OrbitControls.js) is next to this page.</div>');
+    return;
+  }
+  (document.fonts && document.fonts.ready ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]) : Promise.resolve()).then(build);
+
+  // ---------- 3D ----------
+  function build() {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, 1, 1, 4000);
+    const controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.minDistance = 40; controls.maxDistance = 1100;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4450, 0.75));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+    sun.position.set(-120, 260, 180); sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -330, right: 330, top: 300, bottom: -200, near: 10, far: 800 });
+    sun.shadow.bias = -0.0005;
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(200, 120, -100); scene.add(fill);
+
+    const tex = (w, h, draw) => {
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      draw(c.getContext("2d"), w, h);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
+    };
+    const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.6, metalness: 0.05 }, o));
+    const M = {
+      pcb: std(0x15171a), modPcb: std(0x1b1d20), shield: std(0xc4c8ce, { metalness: 0.55, roughness: 0.35 }),
+      metal: std(0xc9cdd3, { metalness: 0.6, roughness: 0.3 }), gold: std(0xd3ad5f, { metalness: 0.6, roughness: 0.3 }),
+      black: std(0x111214, { roughness: 0.75 }), chip: std(0x1a1a1c, { roughness: 0.5 }),
+      blue: std(0x1d5fbf), green: std(0x1f7a3d), white: std(0xf2f2ee, { roughness: 0.8 }), bank: std(0x2b2f35, { roughness: 0.5 })
+    };
+    const add = (geo, mat, x, y, z, shadow = true) => {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+      m.castShadow = shadow; m.receiveShadow = true; scene.add(m); return m;
+    };
+    const box = (w, h, d, mat, x, y, z) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    const decal = (w, d, texture, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, transparent: true }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m;
+    };
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+    // Desk mat: two zones
+    const NX = -175, HX = 175;
+    const mat = decal(700, 440, tex(1400, 880, (g, w, h) => {
+      g.fillStyle = "#232a33"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#1c2a24"; g.fillRect(0, 0, w / 2 - 6, h);
+      for (let x = 0; x <= w; x += 20) { g.fillStyle = "rgba(120,160,220,.10)"; g.fillRect(x, 0, 1, h); }
+      for (let y = 0; y <= h; y += 20) { g.fillStyle = "rgba(120,160,220,.10)"; g.fillRect(0, y, w, 1); }
+      g.fillStyle = "rgba(231,160,90,.55)"; for (let y = 0; y < h; y += 28) g.fillRect(w / 2 - 3, y, 6, 16);
+    }), 0, 0, 70);
+    mat.material.transparent = false;
+
+    const BASE = 8;                 // ESP32 board underside height
+    const TOP = BASE + 1.6;
+
+    function esp32(cx, cz) {
+      box(28.5, 1.6, 51.5, M.pcb, cx, BASE + 0.8, cz);
+      const s = 20;
+      decal(28.5, 51.5, tex(28.5 * s, 51.5 * s, (g, w, h) => {
+        g.fillStyle = "#15171a"; g.fillRect(0, 0, w, h);
+        const X = x => (x + 14.25) * s, Y = z => (z + 25.75) * s;
+        for (let i = 0; i < 15; i++) [-12.7, 12.7].forEach(x => { g.fillStyle = "#c9cdd3"; g.beginPath(); g.arc(X(x), Y(pinZ(i)), 0.85 * s, 0, 7); g.fill(); });
+        g.fillStyle = "#f2f2f2"; g.textBaseline = "middle"; g.font = '700 21px "JetBrains Mono", monospace';
+        LEFT.forEach((n, i) => { g.textAlign = "left"; g.fillText(n, X(-12.7) + 24, Y(pinZ(i))); });
+        RIGHT.forEach((n, i) => { g.textAlign = "right"; g.fillText(n, X(12.7) - 24, Y(pinZ(i))); });
+        g.textAlign = "center"; g.font = '700 22px "JetBrains Mono", monospace'; g.fillText("HW-394", X(1), Y(15.6));
+      }), cx, TOP + 0.01, cz);
+      box(18, 0.8, 25.5, M.modPcb, cx, TOP + 0.4, cz - 13);
+      box(16, 2.4, 17, M.shield, cx, TOP + 2, cz - 9.5);
+      box(4, 1.5, 10, M.chip, cx + 1, TOP + 0.75, cz + 9.5);
+      box(9, 3.2, 7.5, M.metal, cx, TOP + 1.6, cz + 23);
+      [-12.7, 12.7].forEach(x => box(2.5, BASE, 38.1, M.black, cx + x, BASE / 2, cz + pinZ(7)));
+      const led = box(1.6, 0.6, 0.8, std(0xf3f3f3, { emissive: 0x8fb8ff, emissiveIntensity: 0 }), cx + 4, TOP + 0.3, cz + 1.5);
+      const pin = p => V(cx + p.side * 12.7, TOP + 0.4, cz + pinZ(p.i));
+      return { pin, led };
+    }
+
+    // Wire: a tube that arcs from a to b.
+    function wire(a, b, color, lift) {
+      const mid = a.clone().lerp(b, 0.5); mid.y = Math.max(a.y, b.y) + lift;
+      const pts = [a, V(a.x, a.y + lift * 0.45, a.z), mid, V(b.x, b.y + lift * 0.45, b.z), b];
+      const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+      add(new THREE.TubeGeometry(curve, 90, 0.6, 8, false), std(color, { roughness: 0.45 }), 0, 0, 0);
+      [a, b].forEach(p => add(new THREE.CylinderGeometry(1.15, 1.15, 3, 10), M.black, p.x, p.y + 1.3, p.z, false));
+    }
+
+    // CC1101 module lying flat, header toward -x, SMA antenna vertical at +x.
+    function cc1101(cx, cz) {
+      box(30, 1.6, 16, M.blue, cx, 2.8, cz);
+      box(13, 2.2, 12, M.shield, cx + 2, 4.7, cz);
+      box(5, 2.5, 10.16, M.black, cx - 12.5, 4.85, cz);
+      add(new THREE.CylinderGeometry(3.2, 3.2, 9, 16), M.gold, cx + 15, 7, cz);
+      add(new THREE.CylinderGeometry(4.2, 4.2, 46, 16), M.black, cx + 15, 34, cz);
+      const pin = n => V(cx - 13.7 + ((n - 1) % 2) * 2.54, 6.4, cz - 3.81 + Math.floor((n - 1) / 2) * 2.54);
+      return { pin, tip: V(cx + 15, 58, cz) };
+    }
+
+    // Breadboard power rail strip (+ and −), along x.
+    function rail(cx, cz) {
+      box(64, 8, 10, M.white, cx, 4, cz);
+      box(64, 0.2, 0.8, std(0xd62a2a), cx, 8.05, cz - 3.9);
+      box(64, 0.2, 0.8, std(0x2f6fd6), cx, 8.05, cz + 3.9);
+      return { plus: k => V(cx - 24 + k * 7, 8.2, cz - 2), minus: k => V(cx - 24 + k * 7, 8.2, cz + 2) };
+    }
+
+    // ----- OUTSIDE NODE -----
+    const node = esp32(NX, 0);
+    const nodeCC = cc1101(NX + 62, -14);
+    const nodeRail = rail(NX, -52);
+    // HC-SR04 standing up, facing +z
+    const HCX = NX - 22, HCZ = 72;
+    box(45, 20, 1.6, M.blue, HCX, 14, HCZ);
+    [-13, 13].forEach(dx => {
+      const c = add(new THREE.CylinderGeometry(8, 8, 12, 32), M.metal, HCX + dx, 14, HCZ + 6.8);
+      c.rotation.x = Math.PI / 2;
+    });
+    box(10.16, 2.5, 2.5, M.black, HCX, 3, HCZ - 2);
+    const hcPin = n => V(HCX + ({ Vcc: -3.81, Trig: -1.27, Echo: 1.27, Gnd: 3.81 })[n], 2.2, HCZ - 4);
+    // RCWL-0516 standing up, facing +z
+    const RX = NX + 30, RZ = 72;
+    box(36, 17, 1.6, M.green, RX, 12.5, RZ);
+    box(9, 9, 1, M.metal, RX + 6, 13, RZ + 1.4);
+    box(12.7, 2.5, 2.5, M.black, RX, 3, RZ - 2);
+    const rcPin = n => V(RX + ({ "3V3": -5.08, GND: -2.54, OUT: 0, VIN: 2.54, CDS: 5.08 })[n], 2.2, RZ - 4);
+    // Power bank + cable
+    box(70, 22, 40, M.bank, NX - 100, 11, 10);
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(NX, TOP + 1.6, 27), V(NX, 4, 44), V(NX - 40, 2, 48), V(NX - 70, 6, 30)]), 60, 1.6, 10, false), M.bank, 0, 0, 0);
+
+    // Node wires
+    CC_WIRES.forEach((w, k) => wire(node.pin(w.esp), nodeCC.pin(w.to), w.color, 5 + k * 1.3));
+    wire(node.pin(R("3V3")), nodeRail.plus(7), C.v33, 9);
+    wire(node.pin(R("GND")), nodeRail.minus(7), C.gnd, 7);
+    wire(nodeRail.plus(1), nodeCC.pin(2), C.v33, 18);
+    wire(nodeRail.minus(2), nodeCC.pin(1), C.gnd, 15);
+    wire(nodeRail.plus(0), hcPin("Vcc"), C.v33, 22);
+    wire(nodeRail.minus(0), hcPin("Gnd"), C.gnd, 20);
+    wire(nodeRail.minus(4), rcPin("GND"), C.gnd, 24);
+    wire(node.pin(L("D25")), hcPin("Trig"), C.trig, 8);
+    wire(node.pin(L("D26")), hcPin("Echo"), C.echo, 10);
+    wire(node.pin(L("D33")), rcPin("OUT"), C.out, 12);
+    wire(node.pin(L("VIN")), rcPin("VIN"), C.v5, 6);
+
+    // ----- HOME STATION -----
+    const home = esp32(HX, 0);
+    const homeCC = cc1101(HX + 62, -14);
+    const homeRail = rail(HX - 70, -40);
+    CC_WIRES.forEach((w, k) => wire(home.pin(w.esp), homeCC.pin(w.to), w.color, 5 + k * 1.3));
+    wire(home.pin(R("3V3")), homeCC.pin(2), C.v33, 12);
+    wire(home.pin(R("GND")), homeCC.pin(1), C.gnd, 10);
+    // WS2812 + buzzer board
+    const WX = HX - 72, WZ = 30;
+    box(30, 1.6, 20, M.pcb, WX, 1.8, WZ);
+    const ledMats = [-8, 0].map(dx => {
+      const m = std(0xffffff, { emissive: 0x000000, emissiveIntensity: 1.6, roughness: 0.3 });
+      box(5, 1.6, 5, m, WX + dx, 3.4, WZ - 4); return m;
+    });
+    add(new THREE.CylinderGeometry(6, 6, 8, 24), M.black, WX + 8, 6.6, WZ + 2);
+    const wsPin = n => V(WX - 12 + ({ INPUT: 0, GND: 2.54, "+5V": 5.08, "BB-": 7.62 })[n], 3, WZ + 9);
+    // Transistor on the rail's breadboard area
+    const TX = HX - 60, TZ = -40;
+    add(new THREE.CylinderGeometry(2.3, 2.3, 4.5, 16, 1, false, 0, Math.PI), M.black, TX, 10.5, TZ - 9);
+    box(64, 8, 20, M.white, HX - 70, 4, TZ - 15);          // rest of the same breadboard (behind its power rails)
+    const tPin = k => V(TX - 2.54 + k * 2.54, 8.4, TZ - 9);
+    box(6, 1.8, 1.8, std(0xc8a070), HX - 82, 9, TZ - 9);   // 1 kOhm resistor
+    wire(home.pin(L("D13")), wsPin("INPUT"), C.data, 8);
+    wire(home.pin(L("VIN")), wsPin("+5V"), C.v5, 6);
+    wire(home.pin(L("GND")), homeRail.minus(6), C.gnd, 8);
+    wire(homeRail.minus(1), wsPin("GND"), C.gnd, 12);
+    wire(home.pin(L("D12")), V(HX - 79, 9.5, TZ - 9), C.base, 10);
+    wire(tPin(2), homeRail.minus(4), C.gnd, 6);
+    wire(wsPin("BB-"), tPin(0), "#ef7d22", 14);
+    // USB to PC
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(HX, TOP + 1.6, 27), V(HX, 4, 44), V(HX + 30, 2, 90), V(HX + 70, 2, 140)]), 60, 1.6, 10, false), M.bank, 0, 0, 0);
+
+    // ----- Visitor, effects -----
+    const FRONT = 80, CM = 0.45;
+    const visitor = new THREE.Group(); scene.add(visitor);
+    const vmat = std(0xe7a05a, { roughness: 0.5 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(6, 7.5, 28, 20), vmat); body.position.y = 14; body.castShadow = true; visitor.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(6.5, 20, 16), vmat); head.position.y = 35; head.castShadow = true; visitor.add(head);
+    const VX = NX + 4;
+    const zFor = cm => FRONT + cm * CM;
+    visitor.position.set(VX, 0, zFor(420));
+
+    const fx = (geo, color) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })); scene.add(m); return m; };
+    const radar = fx(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), 0xe05bb5);
+    radar.position.set(RX, 0, RZ);
+    const pings = [0, 1, 2].map(() => fx(new THREE.RingGeometry(5, 6.5, 40), 0x7fd8ff));
+    const packet = fx(new THREE.SphereGeometry(4.5, 20, 14), 0xffd36b);
+    const beep = fx(new THREE.RingGeometry(7, 8.5, 40), 0xff5a4f); beep.rotation.x = -Math.PI / 2; beep.position.set(WX + 8, 11, WZ + 2);
+    const arc = (a, b, h) => new THREE.QuadraticBezierCurve3(a, V((a.x + b.x) / 2, h, (a.z + b.z) / 2), b);
+    const upPath = arc(nodeCC.tip, homeCC.tip, 190), backPath = arc(homeCC.tip, nodeCC.tip, 150);
+
+    // ----- Labels -----
+    const staticTags = [
+      { text: "Outside node", cls: "zone", pos: V(NX, 0, -130) },
+      { text: "Home station", cls: "zone", pos: V(HX, 0, -130) },
+      { text: "ESP32 (node)", pos: V(NX, TOP + 8, -18) },
+      { text: "ESP32 (home)", pos: V(HX, TOP + 8, -18) },
+      { text: "HC-SR04", pos: V(HCX, 27, HCZ) },
+      { text: "RCWL-0516 radar", pos: V(RX, 24, RZ) },
+      { text: "CC1101 433 MHz", pos: V(NX + 62, 64, -14) },
+      { text: "CC1101 433 MHz", pos: V(HX + 62, 64, -14) },
+      { text: "Breadboard power rails", pos: V(NX, 12, -52) },
+      { text: "Power bank", pos: V(NX - 100, 25, 10) },
+      { text: "WS2812 LEDs + buzzer", pos: V(WX, 14, WZ) },
+      { text: "Breadboard: rails + transistor + 1 kΩ", pos: V(TX - 10, 18, TZ - 12) },
+      { text: "USB to PC", pos: V(HX + 60, 6, 130) }
+    ];
+    const tags = staticTags.map(t => {
+      const el = document.createElement("div"); el.className = "tag" + (t.cls ? " " + t.cls : ""); el.textContent = t.text;
+      labelLayer.appendChild(el); return { el, pos: t.pos };
+    });
+    const liveTag = (cls) => { const el = document.createElement("div"); el.className = "tag live" + (cls ? " " + cls : ""); el.hidden = true; labelLayer.appendChild(el); const t = { el, pos: V(0, 0, 0), live: true }; tags.push(t); return t; };
+    const visTag = liveTag(), pktTag = liveTag(), stateTag = liveTag();
+    stateTag.pos.set(NX - 40, TOP + 45, -20);
+
+    // ----- Simulation state -----
+    const AUTO = [320, 160, 70, 240, 40, 120];
+    let autoIdx = 0, phase = 0, phaseT = 0, seq = 11, batt = 3.95;
+    let fromCm = 420, targetCm = 320, measured = 0;
+    const ledColor = cm => cm < 100 ? 0xff3b30 : cm < 200 ? 0xffb020 : 0x30d158;
+    const ledName = cm => cm < 100 ? "RED + beep" : cm < 200 ? "YELLOW" : "GREEN";
+
+    function enterPhase(k) {
+      phase = k; phaseT = 0; showPhase(k);
+      if (k === 0) {
+        fromCm = targetCm;
+        if ($("auto").checked) { targetCm = AUTO[autoIdx++ % AUTO.length]; $("dist").value = targetCm; $("distOut").textContent = targetCm + " cm"; }
+        else targetCm = +$("dist").value;
+        if (Math.abs(targetCm - fromCm) < 1) fromCm = Math.min(420, targetCm + 120);
+      }
+      if (k === 1) { seq++; log("node", "woke up: radar OUT high on D33"); }
+      if (k === 2) { measured = targetCm * (1 + (Math.random() - 0.5) * 0.01); }
+      if (k === 3) { log("node", `distance ${measured.toFixed(1)} cm (echo ${Math.round(measured * 58)} us)`); log("node", `TX #${seq} "M,${Math.round(measured)},${batt.toFixed(2)}"`); }
+      if (k === 4) {
+        const rssi = -58 - Math.round(Math.random() * 8);
+        log("home", `RX #${seq} motion ${Math.round(measured)} cm, batt ${batt.toFixed(2)} V, RSSI ${rssi} dBm -> LEDs ${ledName(measured)}`);
+        ledMats.forEach(m => m.emissive.setHex(ledColor(measured)));
+      }
+      if (k === 5) log("home", `TX ack #${seq}`);
+      if (k === 6) { log("node", `ack #${seq} ok -> deep sleep`); batt = Math.max(3.5, batt - 0.01); }
+    }
+    enterPhase(0);
+
+    const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    function animate(dt) {
+      if (playing) {
+        phaseT += dt;
+        if (phaseT >= DUR[phase]) enterPhase((phase + 1) % PHASES.length);
+      }
+      const p = Math.min(1, phaseT / DUR[phase]);
+      const awake = phase >= 1 && phase <= 5;
+      node.led.material.emissiveIntensity = awake ? 1.6 : 0;
+      home.led.material.emissiveIntensity = phase === 4 || phase === 5 ? 1.6 : 0.4;
+      stateTag.el.hidden = false;
+      stateTag.el.textContent = awake ? "node: AWAKE" : "node: deep sleep";
+
+      // Visitor walks during "sleeping"
+      const cm = phase === 0 ? fromCm + (targetCm - fromCm) * ease(p) : targetCm;
+      visitor.position.z = zFor(cm);
+      visitor.position.y = phase === 0 && p < 1 ? Math.abs(Math.sin(p * 18)) * 1.5 : 0;
+      visTag.el.hidden = false; visTag.pos.set(VX, 50, zFor(cm)); visTag.el.textContent = `visitor ${Math.round(cm)} cm`;
+
+      // Radar burst
+      radar.material.opacity = phase === 1 ? 0.35 * (1 - p) : 0;
+      const r = 10 + 140 * (phase === 1 ? p : 0); radar.scale.set(r, r * 0.7, r);
+
+      // Ultrasonic ping: out then back
+      pings.forEach((m, j) => {
+        if (phase !== 2) { m.material.opacity = 0; return; }
+        const q = Math.min(1, Math.max(0, p * 1.25 - j * 0.12));
+        const out = q < 0.5, f = out ? q * 2 : (1 - q) * 2;
+        const z0 = HCZ + 13, z1 = zFor(targetCm) - 7;
+        m.position.set(HCX, 14, z0 + (z1 - z0) * f);
+        m.scale.setScalar(1 + f * 1.6);
+        m.material.color.setHex(out ? 0x7fd8ff : 0x9cf0c0);
+        m.material.opacity = q > 0 && q < 1 ? 0.75 : 0;
+      });
+
+      // Radio packet and ack
+      pktTag.el.hidden = !(phase === 3 || phase === 5);
+      if (phase === 3) { packet.position.copy(upPath.getPoint(ease(p))); packet.material.color.setHex(0xffd36b); packet.material.opacity = 1; pktTag.el.textContent = `#${seq} M,${Math.round(measured)},${batt.toFixed(2)}`; pktTag.pos.copy(packet.position).y += 10; }
+      else if (phase === 5) { packet.position.copy(backPath.getPoint(ease(p))); packet.material.color.setHex(0x9cf0c0); packet.material.opacity = 1; pktTag.el.textContent = `ack #${seq}`; pktTag.pos.copy(packet.position).y += 10; }
+      else packet.material.opacity = 0;
+
+      // Buzzer pulse when close
+      const beeping = (phase === 4 || phase === 5) && measured < 100;
+      beep.material.opacity = beeping ? 0.8 * (1 - ((phaseT / 350) % 1)) : 0;
+      const bs = 1 + ((phaseT / 350) % 1) * 1.8; beep.scale.set(bs, bs, bs);
+    }
+
+    camera.position.set(-20, 430, 600); controls.target.set(0, 0, 75);
+
+    function resize() {
+      const w = stage.clientWidth, h = stage.clientHeight;
+      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+      if (w / Math.max(1, h) < 1.05) camera.position.set(-40, 620, 900);
+    }
+    new ResizeObserver(resize).observe(stage); resize();
+
+    const v = new THREE.Vector3();
+    let last = performance.now();
+    (function loop(now) {
+      requestAnimationFrame(loop);
+      const dt = Math.min(100, now - last); last = now;
+      animate(dt);
+      controls.update();
+      renderer.render(scene, camera);
+      const w = stage.clientWidth, h = stage.clientHeight;
+      tags.forEach(t => {
+        if (t.live && t.el.hidden) return;
+        v.copy(t.pos).project(camera);
+        const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+        t.el.style.visibility = vis ? "visible" : "hidden";
+        t.el.style.left = ((v.x + 1) / 2 * w) + "px";
+        t.el.style.top = ((1 - v.y) / 2 * h - 6) + "px";
+      });
+    })(performance.now());
+  }
+})();
+</script>

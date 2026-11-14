@@ -1,0 +1,679 @@
+<title>Sensor Station Build</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Full build of the sensor station (outside node + home station), one wire per step, exact breadboard holes. */
+:root {
+  --bg: #eceff2; --panel: #fbfcfd; --ink: #161a1f; --muted: #5a6470; --line: #d5dbe2;
+  --accent: #a85a14; --accent-soft: #f4e4d3; --stage-a: #dde3e9; --stage-b: #c9d1da; --danger: #b42318;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+    --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+  --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 410px; }
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 40% 30%, var(--stage-a), var(--stage-b)); }
+#scene { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#scene:active { cursor: grabbing; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; transform: translate(-50%, -100%); white-space: nowrap;
+  font: 700 12px/1 var(--font-mono); padding: 5px 8px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .18); display: flex; align-items: center; gap: 6px; }
+.tag i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1px solid rgb(127 127 127 / .6); }
+.tag.part { font-family: var(--font-body); font-weight: 600; }
+.tag.zone { font: 700 13px/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.hint { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 6px; opacity: .92; }
+.rail { min-width: 0; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line);
+  padding-block: 22px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px; }
+.eyebrow { font: 600 11px/1 var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 26px/1.12 var(--font-display); margin: 8px 0 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 600 13px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+.card .count { font: 500 12px/1 var(--font-mono); color: var(--muted); }
+.card h3 { margin: 0; font: 700 20px/1.2 var(--font-display); }
+.card p { margin: 0; }
+.card .warn { color: var(--danger); font-weight: 500; }
+.card .holes { font: 700 13px/1.5 var(--font-mono); color: var(--accent); }
+.nav { display: flex; gap: 8px; }
+button { font: 600 14px/1 var(--font-body); border-radius: 8px; padding: 10px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.steps .group { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); padding: 12px 10px 4px; }
+.steps button { width: 100%; text-align: left; display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: center;
+  border: 1px solid transparent; background: transparent; padding: 7px 10px; font-weight: 500; }
+.steps button:hover { background: var(--bg); }
+.steps button[aria-current="step"] { background: var(--accent-soft); border-color: var(--accent); }
+.steps .n { font: 700 12px/1 var(--font-mono); color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.mono { font-family: var(--font-mono); font-weight: 700; font-size: 12px; }
+td .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid rgb(127 127 127 / .6); }
+.small { font-size: 13px; color: var(--muted); }
+ul.plain { margin: 6px 0 0; padding-left: 18px; }
+ul.plain li { margin: 3px 0; }
+a { color: var(--accent); }
+.err { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
+  html, body { height: auto; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="scene" aria-label="3D model of the outside node and home station, built one wire at a time"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan · ← → keys change step</div>
+  </div>
+
+  <aside class="rail">
+    <header>
+      <div class="eyebrow">Sensor station · full build</div>
+      <h1>Both boxes, one wire at a time</h1>
+    </header>
+
+    <section class="card" aria-live="polite">
+      <div class="count" id="stepCount"></div>
+      <h3 id="stepTitle"></h3>
+      <div class="holes" id="stepHoles"></div>
+      <p id="stepBody"></p>
+      <p class="warn" id="stepWarn" hidden></p>
+      <div class="nav">
+        <button id="prev" type="button">Back</button>
+        <button id="next" type="button" class="primary">Next step</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Steps</h2>
+      <ol class="steps" id="steps"></ol>
+    </section>
+
+    <section>
+      <h2>A · Outside node: all connections</h2>
+      <table><thead><tr><th>Wire / part</th><th>From</th><th>To</th></tr></thead><tbody id="connA"></tbody></table>
+    </section>
+    <section>
+      <h2>B · Home station: all connections</h2>
+      <table><thead><tr><th>Wire / part</th><th>From</th><th>To</th></tr></thead><tbody id="connB"></tbody></table>
+      <p class="small">Both breadboards: column numbers grow left to right and <b>row a is nearest to you</b>. "+ rail" / "− rail" = the hole rows next to the <b>red</b> / <b>blue</b> line on your side.</p>
+    </section>
+
+    <section>
+      <h2>What to buy (Amazon, checked 2026-11-14)</h2>
+      <ul class="plain small">
+        <li><a href="https://www.amazon.com/dp/B073ZC68QG" target="_blank" rel="noopener">REXQualis Electronics Component Fun Kit</a>, $14.98: 830-hole breadboard, PN2222 NPN transistors, 1 kΩ resistors (×10), 20 male-female + 65 male-male jumpers.</li>
+        <li><a href="https://www.amazon.com/dp/B08Y59P6D1" target="_blank" rel="noopener">BOJACK breadboards, 2× 830 + 2× 400</a>, $9.99: the second box needs its own breadboard.</li>
+        <li><a href="https://www.amazon.com/dp/B01EV70C78" target="_blank" rel="noopener">ELEGOO 120 Dupont wires</a>, $6.98: 40 each of male-female, male-male, female-female (20 cm).</li>
+      </ul>
+      <p class="small">This build uses 12 male-female, 4 male-male and 14 female-female wires. The LED/buzzer board has solder pads, so its 4 wires need a soldering iron (not in these kits).</p>
+    </section>
+
+    <section>
+      <h2>How accurate is this model?</h2>
+      <ul class="plain small">
+        <li><b>Exact:</b> 2.54 mm hole spacing, rows a–e / f–j, which holes are joined inside, every hole used, ESP32 and CC1101 pin names and order, the HC-SR04 and RCWL-0516 pin order (from your photos), transistor leg order E-B-C (S8050 and PN2222, flat face toward you).</li>
+        <li><b>Simplified:</b> part shapes are approximate blocks; the ESP32's pins point down, so its wires plug on from underneath; rails' hole groups and +/− order vary by brand (follow the red and blue lines); every rail hole used here is in columns 1–29, so rails split in the middle of an 830 board don't matter.</li>
+      </ul>
+    </section>
+  </aside>
+</div>
+
+<!-- Three.js r128, stored locally in ./lib so the page works offline -->
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+(function () {
+  const P = 2.54, BB_TOP = 9;
+  const ROWZ = { a: 13.97, b: 11.43, c: 8.89, d: 6.35, e: 3.81, f: -3.81, g: -6.35, h: -8.89, i: -11.43, j: -13.97 };
+  const RAIL = { "+": 20.32, "-": 22.86 };                    // front pair (your side)
+  const LEFT  = ["EN","VP","VN","D34","D35","D32","D33","D25","D26","D27","D14","D12","D13","GND","VIN"];
+  const RIGHT = ["D23","D22","TX0","RX0","D21","D19","D18","D5","D17","D16","D4","D2","D15","GND","3V3"];
+  const pinZ = i => -16 + i * 2.54;
+  const ESP_DX = 100, ESP_DZ = -5, ESP_B = 20;
+  const CC_DX = 158, CC_DZ = -50;
+  const ST = { A: { ox: -250, oz: 0, name: "Outside node" }, B: { ox: 60, oz: 0, name: "Home station" } };
+
+  const C = { gnd: "#0a0a0a", v33: "#d62a2a", v5: "#ff6b9a", trig: "#e8c21a", echo: "#16a37a", out: "#b44fd0", base: "#6b3f1d",
+              data: "#3fb7e0", bb: "#ef7d22", mosi: "#2fa84f", miso: "#2f6fd6", sck: "#f0c419", csn: "#8a4fd0", gdo0: "#ff8c3a", gdo2: "#e6e6e6" };
+
+  // Endpoint specs: "h:f10" hole, "r+:11" / "r-:8" rail column, "eL:D25" / "eR:3V3" ESP32 pin, "c:2" CC1101 pin, "p:BB-" LED-board pad.
+  const CC_SIG = [["D23", 6, C.mosi, "Green", "MOSI"], ["D22", 8, C.gdo2, "White", "GDO2"], ["D19", 7, C.miso, "Blue", "MISO"],
+                  ["D18", 5, C.sck, "Yellow", "SCK"], ["D5", 4, C.csn, "Purple", "CSN"], ["D4", 3, C.gdo0, "Orange", "GDO0"]];
+  const ccSignals = () => CC_SIG.map(([e, n, col, nm], k) => ({ from: "eR:" + e, to: "c:" + n, color: col, name: nm + " (female-female)", lift: 6 + k * 1.6 }));
+
+  const STEPS = [
+    { st: null, title: "What you're building",
+      body: "Two boxes. Left: the outside node (radar + distance sensor + radio, on a power bank). Right: the home station (radio + LEDs + buzzer, on USB). Click Next to build the node first, then the home station, one part or wire per step." },
+
+    // ---------- A: outside node ----------
+    { st: "A", group: "A · Outside node", title: "How a breadboard connects",
+      holes: "Example: column 10, holes f10–j10 · the + and − rails",
+      body: "Under each numbered column, holes f, g, h, i, j sit on one metal clip, so anything in j10 and f10 is connected. a–e is a separate clip on the other side of the centre channel. The two long rows on your side, by the red and blue lines, each run the whole length: + (red) will carry 3.3 V and − (blue) is ground.",
+      strips: ["A:f10", "A:+", "A:-"] },
+    { st: "A", title: "HC-SR04 into j8–j11", part: "hc",
+      holes: "Gnd → j8 · Echo → j9 · Trig → j10 · Vcc → j11",
+      body: "Stand it up with its two round \"eyes\" facing away from you and push the 4 pins into j8, j9, j10, j11. Seen from your side the pins are, left to right, Gnd, Echo, Trig, Vcc (the labels are printed on the eye side: peek over to check). Now column 8 is Gnd, 9 is Echo, 10 is Trig, 11 is Vcc.",
+      warn: "Eyes facing toward you would reverse the order and put Vcc where Gnd should be.",
+      strips: ["A:f8", "A:f9", "A:f10", "A:f11"] },
+    { st: "A", title: "RCWL-0516 radar into j22–j26", part: "rcwl",
+      holes: "3V3 → j22 · GND → j23 · OUT → j24 · VIN → j25 · CDS → j26",
+      body: "Stand it up and push its 5 pins into j22–j26 so that, seen from your side, they read 3V3, GND, OUT, VIN, CDS from left to right (check the printed labels before pushing; if they read backwards, turn the board around).",
+      warn: "The radar's 3V3 pin is an OUTPUT. Nothing else goes into column 22. CDS (column 26) stays empty too.",
+      strips: ["A:f22", "A:f23", "A:f24", "A:f25", "A:f26"] },
+    { st: "A", title: "ESP32 3V3 and GND onto the rails",
+      wires: [{ from: "eR:3V3", to: "r+:27", color: C.v33, name: "Red (male-female)", lift: 16 },
+              { from: "eR:GND", to: "r-:29", color: C.gnd, name: "Black (male-female)", lift: 12 }],
+      holes: "ESP32 3V3 → + rail (col 27) · ESP32 GND (right row) → − rail (col 29)",
+      body: "Female ends on the ESP32's 3V3 pin and the GND next to it (right row, USB end); male ends into the + and − rails. Now the + rail is 3.3 V and the − rail is ground, for everything on this breadboard.",
+      warn: "3V3 goes to the + rail (red line), never to the − rail. Swapping them shorts the ESP32's power.",
+      strips: ["A:+", "A:-"] },
+    { st: "A", title: "HC-SR04 power from the rails",
+      wires: [{ from: "h:f11", to: "r+:11", color: C.v33, name: "Red (male-male)", lift: 6 },
+              { from: "h:f8", to: "r-:8", color: C.gnd, name: "Black (male-male)", lift: 5 }],
+      holes: "f11 (Vcc) → + rail · f8 (Gnd) → − rail",
+      body: "Two short male-male jumpers across the centre channel: column 11 (Vcc) to the + rail, column 8 (Gnd) to the − rail. The sensor now gets 3.3 V, so its Echo signal is 3.3 V too, safe for the ESP32.",
+      strips: ["A:f11", "A:f8", "A:+", "A:-"] },
+    { st: "A", title: "Radar ground to the − rail",
+      wires: [{ from: "h:f23", to: "r-:23", color: C.gnd, name: "Black (male-male)", lift: 5 }],
+      holes: "f23 (GND) → − rail",
+      body: "Column 23 is the radar's GND. A male-male jumper takes it to the − rail, the same ground as the ESP32 and the HC-SR04.",
+      strips: ["A:f23", "A:-"] },
+    { st: "A", title: "HC-SR04 signals: D25 and D26",
+      wires: [{ from: "eL:D25", to: "h:f10", color: C.trig, name: "Gold (male-female)", lift: 18 },
+              { from: "eL:D26", to: "h:f9", color: C.echo, name: "Teal (male-female)", lift: 14 }],
+      holes: "ESP32 D25 → f10 (Trig) · ESP32 D26 → f9 (Echo)",
+      body: "D25 sends the 10 µs trigger pulse into column 10; D26 reads the echo from column 9. These are the same pins as in step 1 of the ladder.",
+      strips: ["A:f10", "A:f9"] },
+    { st: "A", title: "Radar signal and 5 V: D33 and VIN",
+      wires: [{ from: "eL:D33", to: "h:f24", color: C.out, name: "Violet (male-female)", lift: 20 },
+              { from: "eL:VIN", to: "h:f25", color: C.v5, name: "Pink (male-female)", lift: 10 }],
+      holes: "ESP32 D33 → f24 (OUT) · ESP32 VIN → f25 (VIN)",
+      body: "OUT (column 24) goes to D33, an RTC pin, so motion can wake the ESP32 from deep sleep. The radar runs on 5 V: VIN (5 V from the USB power bank) goes to column 25. Its OUT signal is still 3.3 V, safe for D33.",
+      warn: "Column 25 carries 5 V. Never plug a GPIO wire into it.",
+      strips: ["A:f24", "A:f25"] },
+    { st: "A", title: "CC1101 power from the rails",
+      wires: [{ from: "r+:19", to: "c:2", color: C.v33, name: "Red (male-female)", lift: 18 },
+              { from: "r-:20", to: "c:1", color: C.gnd, name: "Black (male-female)", lift: 14 }],
+      holes: "+ rail (col 19) → CC1101 pin 2 (VCC) · − rail (col 20) → CC1101 pin 1 (GND)",
+      body: "Male ends into the rails, female ends onto the radio's header: pin 1 is GND, pin 2 is VCC (pin 1 = top-left with the antenna on the right). The radio now shares the 3.3 V rail.",
+      warn: "3.3 V only. Screw the antenna on before the radio ever gets power.",
+      strips: ["A:+", "A:-"] },
+    { st: "A", title: "CC1101 signals: 6 female-female wires",
+      wires: ccSignals(),
+      holes: "D23→6 · D22→8 · D19→7 · D18→5 · D5→4 · D4→3",
+      body: "The same 6 data wires as in the CC1101 guide, straight from the ESP32's right row to the radio's header. These don't touch the breadboard.",
+      strips: [] },
+    { st: "A", title: "Node done: check, then power",
+      holes: "16 wires + 2 sensors",
+      body: "Compare every wire with table A below. Then plug a USB power bank into the ESP32. Nothing should get warm; if anything does, unplug at once and recheck the red and black wires.",
+      strips: ["A:+", "A:-"], all: "A" },
+
+    // ---------- B: home station ----------
+    { st: "B", group: "B · Home station", title: "CC1101: 8 female-female wires",
+      wires: [{ from: "eR:3V3", to: "c:2", color: C.v33, name: "Red (female-female)", lift: 16 },
+              { from: "eR:GND", to: "c:1", color: C.gnd, name: "Black (female-female)", lift: 13 }, ...ccSignals()],
+      holes: "3V3→2 · GND→1 · D23→6 · D22→8 · D19→7 · D18→5 · D5→4 · D4→3",
+      body: "At home the radio is the only thing on 3.3 V, so it takes power straight from the ESP32's 3V3 and GND (right row). No breadboard needed for the radio.",
+      warn: "Antenna on before power.",
+      strips: [] },
+    { st: "B", title: "Transistor into c10, c11, c12", part: "tr",
+      holes: "E → c10 · B → c11 · C → c12",
+      body: "Flat printed face toward you (toward row a), legs down. Left to right the legs are E (emitter), B (base), C (collector). Both the S8050 and the PN2222 from the REXQualis kit have this E-B-C order. Column 10 is now the emitter, 11 the base, 12 the collector.",
+      warn: "Read the name printed on it. A BC547 or P2N2222A is C-B-E (reversed): turn one of those so its flat face points away from you.",
+      strips: ["B:a10", "B:a11", "B:a12"] },
+    { st: "B", title: "Resistor 1 kΩ: b7 to b11", part: "res",
+      holes: "b7 ↔ b11",
+      body: "Bands brown-black-red-gold = 1 kΩ. Either way round. It joins column 7 to the base (column 11) and limits the base current to about 2.6 mA.",
+      strips: ["B:a7", "B:a11"] },
+    { st: "B", title: "Emitter to ground",
+      wires: [{ from: "h:a10", to: "r-:10", color: C.gnd, name: "Black (male-male)", lift: 5 }],
+      holes: "a10 → − rail",
+      body: "A short male-male jumper puts the transistor's emitter on the − rail.",
+      strips: ["B:a10", "B:-"] },
+    { st: "B", title: "ESP32 GND to the − rail",
+      wires: [{ from: "eL:GND", to: "r-:28", color: C.gnd, name: "Black (male-female)", lift: 12 }],
+      holes: "ESP32 GND (left row, next to VIN) → − rail",
+      body: "The left-row GND (the right-row GND is already used by the radio) makes the − rail the ESP32's ground.",
+      strips: ["B:-"] },
+    { st: "B", title: "D12 to the resistor",
+      wires: [{ from: "eL:D12", to: "h:a7", color: C.base, name: "Brown (male-female)", lift: 22 }],
+      holes: "ESP32 D12 → a7",
+      body: "D12 → column 7 → resistor → column 11 → base. D12 HIGH switches the transistor on.",
+      strips: ["B:a7", "B:a11"] },
+    { st: "B", title: "Buzzer BB- to the collector",
+      wires: [{ from: "p:BB-", to: "h:a12", color: C.bb, name: "Orange (soldered to BB-)", lift: 10 }],
+      holes: "LED board BB- → a12",
+      body: "The wire soldered to the BB- pad goes into a12, the collector's column. The buzzer's + side is already joined to +5V on the LED board.",
+      warn: "BB- sits at 5 V when the buzzer is off: never to an ESP32 pin.",
+      strips: ["B:a12"] },
+    { st: "B", title: "LED board GND to the − rail",
+      wires: [{ from: "p:GND", to: "r-:16", color: C.gnd, name: "Black (soldered to GND)", lift: 8 }],
+      holes: "LED board GND → − rail",
+      body: "The LED board, the transistor and the ESP32 now share one ground.",
+      strips: ["B:-"] },
+    { st: "B", title: "5 V to the LED board",
+      wires: [{ from: "eL:VIN", to: "h:a25", color: C.v5, name: "Pink (male-female)", lift: 12 },
+              { from: "p:+5V", to: "h:b25", color: C.v5, name: "Pink (soldered to +5V)", lift: 9 }],
+      holes: "ESP32 VIN → a25 · LED board +5V → b25",
+      body: "Two wires in the same column are connected: VIN (5 V from USB) reaches the LED board's +5V through column 25.",
+      warn: "Column 25 carries 5 V. Never let it touch a GPIO wire.",
+      strips: ["B:a25"] },
+    { st: "B", title: "Data to the LEDs",
+      wires: [{ from: "eL:D13", to: "h:a20", color: C.data, name: "Cyan (male-female)", lift: 16 },
+              { from: "p:INPUT", to: "h:b20", color: C.data, name: "Cyan (soldered to INPUT)", lift: 7 }],
+      holes: "ESP32 D13 → a20 · LED board INPUT → b20",
+      body: "Column 20 joins D13 to the LEDs' data input.",
+      strips: ["B:a20"] },
+    { st: "B", title: "Home done: how the beep flows",
+      holes: "VIN → col 25 → buzzer → BB- → col 12 → C → E → col 10 → − rail → GND",
+      body: "D12 HIGH: a small current flows through column 7, the resistor and column 11 into the base, and the transistor connects collector to emitter. The buzzer current then flows from VIN through column 25, the buzzer, BB-, column 12, the transistor and column 10 into the ground rail: beep. D12 LOW: silence.",
+      strips: ["B:a25", "B:a12", "B:a10", "B:-", "B:a7", "B:a11"], all: "B" }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), canvas = $("scene"), labelLayer = $("labels");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- names / tables ----------
+  const CC_NAMES = { 1: "GND", 2: "VCC", 3: "GDO0", 4: "CSN", 5: "SCK", 6: "MOSI", 7: "MISO", 8: "GDO2" };
+  function endName(spec) {
+    const [t, v] = spec.split(":");
+    if (t === "h") return v;
+    if (t === "r+") return "+ rail";
+    if (t === "r-") return "− rail";
+    if (t === "eL" || t === "eR") return "ESP32 " + v;
+    if (t === "c") return `CC1101 pin ${v} (${CC_NAMES[v]})`;
+    return "LED board " + v;
+  }
+  const rowsA = [["#1d5fbf", "HC-SR04 (eyes away)", "Gnd j8 · Echo j9", "Trig j10 · Vcc j11"], ["#1f7a3d", "RCWL-0516", "3V3 j22 · GND j23 · OUT j24", "VIN j25 · CDS j26"]];
+  const rowsB = [["#222", "Transistor S8050 / PN2222", "E c10 · B c11 · C c12", "flat face toward row a"], ["#c8a070", "Resistor 1 kΩ", "b7", "b11"]];
+  STEPS.forEach(s => (s.wires || []).forEach(w => (s.st === "A" ? rowsA : rowsB).push([w.color, w.name, endName(w.from), endName(w.to)])));
+  const tr = r => `<tr><td><span class="sw" style="background:${r[0]}"></span>${r[1]}</td><td class="mono">${r[2]}</td><td class="mono">${r[3]}</td></tr>`;
+  $("connA").innerHTML = rowsA.map(tr).join(""); $("connB").innerHTML = rowsB.map(tr).join("");
+
+  // ---------- step list ----------
+  const stepNo = k => k === 0 ? "0" : (STEPS[k].st + (STEPS.slice(1, k + 1).filter(s => s.st === STEPS[k].st).length));
+  STEPS.forEach((s, k) => {
+    if (s.group) { const g = document.createElement("li"); g.className = "group"; g.textContent = s.group; $("steps").appendChild(g); }
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.type = "button"; b.id = "step-" + k;
+    b.innerHTML = `<span class="n">${stepNo(k)}</span><span>${s.title}</span>`;
+    b.addEventListener("click", () => setStep(k));
+    li.appendChild(b); $("steps").appendChild(li);
+  });
+  $("prev").addEventListener("click", () => setStep(current - 1));
+  $("next").addEventListener("click", () => setStep(current + 1));
+  addEventListener("keydown", e => { if (e.key === "ArrowRight") setStep(current + 1); if (e.key === "ArrowLeft") setStep(current - 1); });
+
+  let current = 0, three = null;
+  function renderRail() {
+    const s = STEPS[current];
+    $("stepCount").textContent = current === 0 ? "Overview" : `${s.st === "A" ? "Outside node" : "Home station"} · step ${stepNo(current)} · ${current} of ${STEPS.length - 1}`;
+    $("stepTitle").textContent = s.title;
+    $("stepHoles").textContent = s.holes || ""; $("stepHoles").hidden = !s.holes;
+    $("stepBody").textContent = s.body;
+    const w = $("stepWarn"); w.hidden = !s.warn; w.textContent = s.warn || "";
+    $("prev").disabled = current === 0; $("next").disabled = current === STEPS.length - 1;
+    $("next").textContent = current === 0 ? "Start building" : "Next step";
+    STEPS.forEach((_, k) => { const b = $("step-" + k); if (k === current) { b.setAttribute("aria-current", "step"); b.scrollIntoView({ block: "nearest" }); } else b.removeAttribute("aria-current"); });
+  }
+  function setStep(k) { if (k < 0 || k >= STEPS.length) return; current = k; renderRail(); if (three) three.applyStep(k); }
+  renderRail();
+
+  if (!window.THREE || !THREE.OrbitControls) {
+    stage.insertAdjacentHTML("beforeend", '<div class="err">The 3D view could not load. Make sure the lib folder (three.min.js and OrbitControls.js) is next to this page. The steps on the right still work.</div>');
+    return;
+  }
+  (document.fonts && document.fonts.ready ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]) : Promise.resolve())
+    .then(() => { three = build(); three.applyStep(current); });
+
+  // ---------- 3D ----------
+  function build() {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, 1, 1, 4000);
+    const controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.49;
+    controls.minDistance = 25; controls.maxDistance = 1200;
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4450, 0.8));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(-80, 260, 160); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+    Object.assign(sun.shadow.camera, { left: -330, right: 300, top: 180, bottom: -160, near: 10, far: 700 });
+    sun.shadow.bias = -0.0005; scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(160, 100, -80); scene.add(fill);
+
+    const tex = (w, h, draw) => { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+    const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.6, metalness: 0.05 }, o));
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const M = {
+      white: std(0xf1efe8, { roughness: 0.85 }), black: std(0x111214, { roughness: 0.7 }), gold: std(0xd3ad5f, { metalness: 0.6, roughness: 0.3 }),
+      metal: std(0xc9cdd3, { metalness: 0.6, roughness: 0.3 }), pcb: std(0x15171a), shield: std(0xc4c8ce, { metalness: 0.55, roughness: 0.35 }),
+      housing: std(0x0e0f10, { roughness: 0.55 }), tan: std(0xc8a070, { roughness: 0.5 }), solder: std(0xb8bcc2, { metalness: 0.7, roughness: 0.25 }),
+      blue: std(0x1d5fbf), green: std(0x1f7a3d), ccBlue: std(0x2257b5)
+    };
+
+    const items = [];            // { mesh, step }
+    let BUILD = 0;               // step that meshes being created belong to
+    const add = (geo, mat, x, y, z, shadow = true) => {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true;
+      scene.add(m); items.push({ mesh: m, step: BUILD }); return m;
+    };
+    const box = (w, h, d, mat, x, y, z) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    const decal = (w, d, texture, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: texture, roughness: 0.7 }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); items.push({ mesh: m, step: BUILD }); return m;
+    };
+
+    // Desk
+    BUILD = 0;
+    decal(640, 330, tex(1280, 660, (g, w, h) => {
+      g.fillStyle = "#232a33"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#1c2a24"; g.fillRect(0, 0, w * 0.47, h);
+      for (let x = 0; x <= w; x += 20) { g.fillStyle = "rgba(120,160,220,.10)"; g.fillRect(x, 0, 1, h); }
+      for (let y = 0; y <= h; y += 20) { g.fillStyle = "rgba(120,160,220,.10)"; g.fillRect(0, y, w, 1); }
+    }), -20, -0.02, 20);
+
+    // ----- position helpers per station -----
+    const colX = (s, c) => s.ox + (c - 15.5) * P;
+    const holeV = (s, name) => V(colX(s, +name.slice(1)), BB_TOP, s.oz + ROWZ[name[0]]);
+    const railV = (s, sign, c) => V(colX(s, c), BB_TOP, s.oz + RAIL[sign]);
+    const espX = s => s.ox + ESP_DX, espZ = s => s.oz + ESP_DZ;
+    const espPinV = (s, side, n) => V(espX(s) + (side === "L" ? -12.7 : 12.7), ESP_B - 9, espZ(s) + pinZ((side === "L" ? LEFT : RIGHT).indexOf(n)));
+    const ccX = s => s.ox + CC_DX, ccZ = s => s.oz + CC_DZ;
+    const CC_PIN_TOP = 10.1;
+    const ccPinV = (s, n) => V(ccX(s) - 13 + ((n - 1) % 2) * P - P / 2, CC_PIN_TOP, ccZ(s) - 3.81 + Math.floor((n - 1) / 2) * P);
+    const LED = { dx: -12, dz: 62 };
+    const PADS = { INPUT: -10.16, GND: -5.08, "+5V": 0, "BB-": 5.08, OUTPUT: 10.16 };
+    const padV = (s, n) => V(s.ox + LED.dx + PADS[n], 1.8, s.oz + LED.dz - 7.3);
+
+    // ----- breadboard -----
+    const BW = 82.5, BD = 54.6;
+    const bbTex = tex(BW * 14, BD * 14, (g, w, h) => {
+      const s = 14, X = x => (x + BW / 2) * s, Y = z => (z + BD / 2) * s;
+      g.fillStyle = "#f1efe8"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#dcd9cf"; g.fillRect(0, Y(-1.6), w, 3.2 * s);
+      const hole = (x, z) => { g.fillStyle = "#3b3d40"; g.fillRect(X(x) - 0.55 * s, Y(z) - 0.55 * s, 1.1 * s, 1.1 * s); };
+      const cx = c => (c - 15.5) * P;
+      for (let c = 1; c <= 30; c++) Object.values(ROWZ).forEach(z => hole(cx(c), z));
+      [RAIL["+"], RAIL["-"], -RAIL["+"], -RAIL["-"]].forEach(z => { for (let c = 1; c <= 30; c++) if (c % 6 !== 0) hole(cx(c), z); });
+      const line = (z, col) => { g.fillStyle = col; g.fillRect(X(-38), Y(z) - 0.35 * s, 76 * s, 0.7 * s); };
+      line(RAIL["+"] - 1.5, "#d62a2a"); line(RAIL["-"] + 1.5, "#2f6fd6"); line(-RAIL["+"] + 1.5, "#d62a2a"); line(-RAIL["-"] - 1.5, "#2f6fd6");
+      g.textAlign = "center"; g.textBaseline = "middle"; g.font = `700 ${2.6 * s}px "JetBrains Mono", monospace`;
+      [[RAIL["+"], "+", "#d62a2a"], [RAIL["-"], "−", "#2f6fd6"], [-RAIL["+"], "+", "#d62a2a"], [-RAIL["-"], "−", "#2f6fd6"]]
+        .forEach(([z, t, c]) => { g.fillStyle = c; g.fillText(t, X(-39.8), Y(z)); g.fillText(t, X(39.6), Y(z)); });
+      g.fillStyle = "#55585e"; g.font = `700 ${1.7 * s}px "JetBrains Mono", monospace`;
+      Object.entries(ROWZ).forEach(([r, z]) => { g.fillText(r, X(-39.8), Y(z)); g.fillText(r, X(39.6), Y(z)); });
+      [1, 5, 10, 15, 20, 25, 30].forEach(c => { g.fillText(String(c), X(cx(c)), Y(16.6)); g.fillText(String(c), X(cx(c)), Y(-16.6)); });
+    });
+    const hlMat = new THREE.MeshBasicMaterial({ color: 0xff9a2e, transparent: true, opacity: 0.55, depthWrite: false });
+    const strips = {};
+    function breadboard(key, s) {
+      box(BW, BB_TOP, BD, M.white, s.ox, BB_TOP / 2, s.oz);
+      decal(BW, BD, bbTex, s.ox, BB_TOP + 0.01, s.oz);
+      const mk = (id, w, d, x, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, d), hlMat); m.position.set(x, BB_TOP + 0.15, z); m.visible = false; scene.add(m); strips[id] = m; };
+      for (let c = 1; c <= 30; c++) {
+        mk(`${key}:a${c}`, 2, ROWZ.a - ROWZ.e + 2, colX(s, c), s.oz + (ROWZ.a + ROWZ.e) / 2);
+        mk(`${key}:f${c}`, 2, ROWZ.f - ROWZ.j + 2, colX(s, c), s.oz + (ROWZ.f + ROWZ.j) / 2);
+      }
+      mk(`${key}:+`, 76, 2, s.ox, s.oz + RAIL["+"]); mk(`${key}:-`, 76, 2, s.ox, s.oz + RAIL["-"]);
+    }
+
+    // ----- ESP32 -----
+    const espTex = tex(28.5 * 20, 51.5 * 20, (g, w, h) => {
+      const es = 20, X = x => (x + 14.25) * es, Y = z => (z + 25.75) * es;
+      g.fillStyle = "#15171a"; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 15; i++) [-12.7, 12.7].forEach(x => { g.fillStyle = "#c9cdd3"; g.beginPath(); g.arc(X(x), Y(pinZ(i)), 0.85 * es, 0, 7); g.fill(); });
+      g.fillStyle = "#f2f2f2"; g.textBaseline = "middle"; g.font = '700 21px "JetBrains Mono", monospace';
+      LEFT.forEach((n, i) => { g.textAlign = "left"; g.fillText(n, X(-12.7) + 24, Y(pinZ(i))); });
+      RIGHT.forEach((n, i) => { g.textAlign = "right"; g.fillText(n, X(12.7) - 24, Y(pinZ(i))); });
+      g.textAlign = "center"; g.font = '700 22px "JetBrains Mono", monospace'; g.fillText("HW-394", X(1), Y(15.6));
+    });
+    function esp32(s) {
+      const x = espX(s), z = espZ(s), top = ESP_B + 1.6;
+      box(28.5, 1.6, 51.5, M.pcb, x, ESP_B + 0.8, z);
+      decal(28.5, 51.5, espTex, x, top + 0.01, z);
+      box(16, 2.4, 17, M.shield, x, top + 2, z - 9.5);
+      box(9, 3.2, 7.5, M.metal, x, top + 1.6, z + 23);
+      [-12.7, 12.7].forEach(dx => box(2.5, 2.5, 38.1, M.black, x + dx, ESP_B - 1.25, z + pinZ(7)));
+      for (let i = 0; i < 15; i++) [-12.7, 12.7].forEach(dx => box(0.64, 10, 0.64, M.gold, x + dx, ESP_B - 4, z + pinZ(i)));
+    }
+
+    // ----- CC1101 (flat, header pins up on the left, antenna on the right) -----
+    function cc1101(s) {
+      const x = ccX(s), z = ccZ(s);
+      box(30, 1.6, 16, M.ccBlue, x, 0.8, z);
+      box(13, 2.2, 12, M.shield, x + 2, 2.7, z);
+      box(5.08, 2.5, 10.16, M.black, x - 13, 2.85, z);
+      for (let n = 1; n <= 8; n++) { const p = ccPinV(s, n); box(0.64, 6, 0.64, M.gold, p.x, CC_PIN_TOP - 3, p.z); }
+      add(new THREE.CylinderGeometry(3.2, 3.2, 9, 16), M.gold, x + 15, 5, z);
+      add(new THREE.CylinderGeometry(4.2, 4.2, 46, 16), M.black, x + 15, 32, z);
+    }
+
+    // ----- sensors standing in row j, facing away (−z) -----
+    function hcsr04(s) {
+      const cx = (colX(s, 8) + colX(s, 11)) / 2, z = s.oz + ROWZ.j, y0 = BB_TOP + 2.5;
+      box(10.16, 2.5, 2.5, M.black, cx, BB_TOP + 1.25, z);
+      [8, 9, 10, 11].forEach(c => box(0.64, 3, 0.64, M.gold, colX(s, c), BB_TOP + 1, z));
+      box(45, 20, 1.6, M.blue, cx, y0 + 10, z);
+      [-13, 13].forEach(dx => { const m = add(new THREE.CylinderGeometry(8, 8, 12, 32), M.metal, cx + dx, y0 + 10, z - 6.8); m.rotation.x = Math.PI / 2; });
+    }
+    function rcwl(s) {
+      const cx = colX(s, 24), z = s.oz + ROWZ.j, y0 = BB_TOP + 2.5;
+      box(12.7, 2.5, 2.5, M.black, cx, BB_TOP + 1.25, z);
+      [22, 23, 24, 25, 26].forEach(c => box(0.64, 3, 0.64, M.gold, colX(s, c), BB_TOP + 1, z));
+      box(17.3, 36, 1.6, M.green, cx, y0 + 18, z);
+      box(8, 8, 1.2, M.metal, cx, y0 + 24, z - 1.4);
+    }
+
+    // ----- home: transistor, resistor, LED board -----
+    function transistor(s) {
+      const tz = s.oz + ROWZ.c, tx = colX(s, 11), ty = BB_TOP + 5.5;
+      add(new THREE.CylinderGeometry(2.4, 2.4, 4.6, 24, 1, false, Math.PI / 2, Math.PI), M.black, tx, ty, tz - 0.4);
+      box(4.8, 4.6, 0.25, M.black, tx, ty, tz - 0.4);
+      [10, 11, 12].forEach(c => box(0.45, 4, 0.45, M.metal, colX(s, c), BB_TOP + 1.6, tz));
+      [10, 12].forEach(c => box(Math.abs(colX(s, c) - tx) + 0.45, 0.45, 0.45, M.metal, (colX(s, c) + tx) / 2, BB_TOP + 3.4, tz));
+    }
+    function resistor(s) {
+      const rz = s.oz + ROWZ.b, x0 = colX(s, 7), x1 = colX(s, 11), ry = BB_TOP + 3.2, mx = (x0 + x1) / 2;
+      const b = add(new THREE.CylinderGeometry(1.2, 1.2, 6, 20), M.tan, mx, ry, rz); b.rotation.z = Math.PI / 2;
+      [[-1.8, 0x7a4a1e], [-0.6, 0x111111], [0.6, 0xc0302a], [1.9, 0xd4af37]].forEach(([dx, c]) => {
+        const m = add(new THREE.CylinderGeometry(1.28, 1.28, 0.5, 20), std(c), mx + dx, ry, rz); m.rotation.z = Math.PI / 2; });
+      box(x1 - x0, 0.45, 0.45, M.metal, mx, ry, rz);
+      [x0, x1].forEach(x => box(0.45, ry - BB_TOP + 0.5, 0.45, M.metal, x, (ry + BB_TOP - 0.5) / 2, rz));
+    }
+    const ledMats = [];
+    function ledBoard(s) {
+      const x = s.ox + LED.dx, z = s.oz + LED.dz;
+      box(34, 1.6, 18, M.pcb, x, 0.8, z);
+      decal(34, 18, tex(34 * 16, 18 * 16, (g, w, h) => {
+        g.fillStyle = "#15171a"; g.fillRect(0, 0, w, h); g.textAlign = "center"; g.textBaseline = "middle";
+        Object.entries(PADS).forEach(([n, px]) => {
+          g.fillStyle = "#d8b45c"; g.fillRect((px + 17) * 16 - 26, 16, 52, 40);
+          g.fillStyle = "#f2f2f2"; g.font = '700 22px "JetBrains Mono", monospace'; g.fillText(n, (px + 17) * 16, 5.6 * 16);
+        });
+      }), x, 1.61, z);
+      [-8, 0].forEach(dx => ledMats.push(box(5, 1.6, 5, std(0xffffff, { emissive: 0x000000, emissiveIntensity: 1.5 }), x + dx, 2.4, z + 4).material));
+      add(new THREE.CylinderGeometry(5.5, 5.5, 8, 24), M.black, x + 10, 5.6, z + 4);
+    }
+
+    // ----- base parts (always visible) -----
+    BUILD = 0;
+    breadboard("A", ST.A); esp32(ST.A); cc1101(ST.A);
+    breadboard("B", ST.B); esp32(ST.B); cc1101(ST.B); ledBoard(ST.B);
+    STEPS.forEach((st, k) => {
+      if (!st.part) return;
+      BUILD = k;
+      const s = ST[st.st];
+      ({ hc: hcsr04, rcwl, tr: transistor, res: resistor })[st.part](s);
+    });
+
+    // ----- wires -----
+    function endInfo(s, spec, towardX) {
+      const [t, v] = spec.split(":");
+      if (t === "h" || t === "r+" || t === "r-") {
+        const p = t === "h" ? holeV(s, v) : railV(s, t === "r+" ? "+" : "-", +v);
+        return { p, kind: "male", path: [V(p.x, p.y + 7.5, p.z), V(p.x, p.y + 11, p.z)], tagY: 14 };
+      }
+      if (t === "eL" || t === "eR") {
+        const p = espPinV(s, t[1], v), dir = Math.sign(towardX - p.x) || -1;
+        return { p, kind: "espF", path: [V(p.x, ESP_B - 16.5, p.z), V(p.x, 1.6, p.z), V(p.x + dir * 9, 1.6, p.z)], tagY: -3 };
+      }
+      if (t === "c") {
+        const p = ccPinV(s, +v);
+        return { p, kind: "ccF", path: [V(p.x, CC_PIN_TOP + 8, p.z), V(p.x, CC_PIN_TOP + 12, p.z)], tagY: 12 + (+v - 1) * 5 };
+      }
+      const p = padV(s, v);
+      return { p, kind: "pad", path: [V(p.x, p.y + 0.6, p.z), V(p.x, p.y + 4, p.z - 3)], tagY: 5 };
+    }
+    function endHardware(e) {
+      const p = e.p;
+      if (e.kind === "male") { box(0.64, 3, 0.64, M.gold, p.x, p.y + 0.5, p.z); box(2.5, 5.5, 2.5, M.housing, p.x, p.y + 4.75, p.z); }
+      else if (e.kind === "espF") box(2.5, 14, 2.5, M.housing, p.x, ESP_B - 9.5, p.z);
+      else if (e.kind === "ccF") box(2.5, 14, 2.5, M.housing, p.x, CC_PIN_TOP + 1, p.z);
+      else add(new THREE.SphereGeometry(1.4, 12, 8), M.solder, p.x, p.y + 0.3, p.z);
+    }
+    const wireTags = [];
+    const stepPoints = STEPS.map(() => []);
+    STEPS.forEach((st, k) => (st.wires || []).forEach(w => {
+      BUILD = k;
+      const s = ST[st.st];
+      const guessA = endInfo(s, w.from, 0).p, guessB = endInfo(s, w.to, 0).p;
+      const a = endInfo(s, w.from, guessB.x), b = endInfo(s, w.to, guessA.x);
+      const pa = a.path, pb = b.path.slice().reverse();
+      const A = pa[pa.length - 1], B = pb[0];
+      const mid = A.clone().lerp(B, 0.5); mid.y = Math.max(A.y, B.y) + w.lift;
+      const curve = new THREE.CatmullRomCurve3([...pa, mid, ...pb], false, "centripetal");
+      add(new THREE.TubeGeometry(curve, 180, 0.65, 10, false), std(w.color, { roughness: 0.45 }), 0, 0, 0);
+      endHardware(a); endHardware(b);
+      wireTags.push({ step: k, color: w.color, text: endName(w.from), pos: a.p.clone().add(V(0, a.tagY, 0)) });
+      wireTags.push({ step: k, color: w.color, text: endName(w.to), pos: b.p.clone().add(V(0, b.tagY, 0)) });
+      stepPoints[k].push(a.p, b.p);
+    }));
+
+    // ----- labels -----
+    const baseTags = [];
+    ["A", "B"].forEach(key => {
+      const s = ST[key];
+      baseTags.push({ text: s.name, zone: true, pos: V(s.ox + 40, 0, s.oz - 75) },
+                    { text: "ESP32", part: true, pos: V(espX(s), ESP_B + 9, espZ(s) - 14) },
+                    { text: "CC1101 433 MHz", part: true, pos: V(ccX(s) + 15, 60, ccZ(s)) },
+                    { text: "Breadboard", part: true, pos: V(s.ox - 30, BB_TOP + 3, s.oz + 30) });
+    });
+    baseTags.push({ text: "LED + buzzer board", part: true, pos: V(ST.B.ox + LED.dx, 12, ST.B.oz + LED.dz + 6) });
+    const partTags = [
+      { step: STEPS.findIndex(s => s.part === "hc"), text: "HC-SR04 (eyes away)", pos: V((colX(ST.A, 8) + colX(ST.A, 11)) / 2, BB_TOP + 26, ST.A.oz + ROWZ.j) },
+      { step: STEPS.findIndex(s => s.part === "rcwl"), text: "RCWL-0516", pos: V(colX(ST.A, 24), BB_TOP + 42, ST.A.oz + ROWZ.j) },
+      { step: STEPS.findIndex(s => s.part === "tr"), text: "S8050 / PN2222: E B C", pos: V(colX(ST.B, 11), BB_TOP + 12, ST.B.oz + ROWZ.c) },
+      { step: STEPS.findIndex(s => s.part === "res"), text: "1 kΩ", pos: V(colX(ST.B, 9), BB_TOP + 7, ST.B.oz + ROWZ.b + 1) }
+    ];
+    // Hole labels for the parts' own pins, shown at the step they are placed
+    const pinTags = {
+      hc: [["Gnd j8", 8], ["Echo j9", 9], ["Trig j10", 10], ["Vcc j11", 11]].map(([t, c], i) => ({ text: t, pos: V(colX(ST.A, c), BB_TOP + 1 + (i % 2) * 7, ST.A.oz + ROWZ.e) })),
+      rcwl: [["3V3 j22", 22], ["GND j23", 23], ["OUT j24", 24], ["VIN j25", 25], ["CDS j26", 26]].map(([t, c], i) => ({ text: t, pos: V(colX(ST.A, c), BB_TOP + 1 + (i % 2) * 7, ST.A.oz + ROWZ.e) })),
+      tr: [["E → c10", 10, -9, 0], ["B → c11", 11, 0, 9], ["C → c12", 12, 9, 0]].map(([t, c, dx, dy]) => ({ text: t, pos: V(colX(ST.B, c) + dx, BB_TOP + 1 + dy, ST.B.oz + ROWZ.a + 4) })),
+      res: [{ text: "b7", pos: V(colX(ST.B, 7), BB_TOP + 1, ST.B.oz + ROWZ.a + 4) }, { text: "b11", pos: V(colX(ST.B, 11), BB_TOP + 1, ST.B.oz + ROWZ.a + 4) }]
+    };
+    let activeTags = [];
+    function setTags(list) {
+      labelLayer.innerHTML = "";
+      activeTags = list.map(t => {
+        const el = document.createElement("div");
+        el.className = "tag" + (t.part ? " part" : "") + (t.zone ? " zone" : "");
+        el.innerHTML = (t.color ? `<i style="background:${t.color}"></i>` : "") + t.text;
+        labelLayer.appendChild(el); return { el, pos: t.pos };
+      });
+    }
+
+    // ----- camera -----
+    let tween = null;
+    function flyTo(pos, target) {
+      const narrow = stage.clientWidth / Math.max(1, stage.clientHeight) < 1.05;
+      if (narrow) pos = target.clone().add(pos.clone().sub(target).multiplyScalar(1.5));
+      if (reduceMotion) { camera.position.copy(pos); controls.target.copy(target); return; }
+      tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, t: performance.now() };
+    }
+    const OVER_T = V(-40, 0, 15), OVER_P = V(-40, 420, 470);
+    camera.position.copy(OVER_P); controls.target.copy(OVER_T);
+    function focusOn(points, fallback) {
+      if (!points.length) points = fallback;
+      const bb = new THREE.Box3().setFromPoints(points);
+      const c = bb.getCenter(V(0, 0, 0)); c.y = 5;
+      const size = bb.getSize(V(0, 0, 0)), d = Math.max(85, Math.max(size.x, size.z) * 1.25);
+      flyTo(c.clone().add(V(0, d * 0.95, d * 1.05)), c);
+    }
+
+    function applyStep(k) {
+      const st = STEPS[k];
+      items.forEach(({ mesh, step }) => { mesh.visible = k === 0 || step <= k; });
+      Object.values(strips).forEach(m => m.visible = false);
+      (st.strips || []).forEach(id => { if (strips[id]) strips[id].visible = true; });
+      ledMats.forEach(m => m.emissive.setHex(st.all === "B" || k === 0 ? 0x30d158 : 0x000000));
+      const tags = baseTags.slice();
+      partTags.forEach(t => { if (k === 0 || t.step <= k) tags.push(Object.assign({ part: true }, t)); });
+      if (st.part) tags.push(...pinTags[st.part]);
+      tags.push(...wireTags.filter(t => t.step === k));
+      if (k === 1) tags.push({ text: "f10–j10 joined", pos: V(colX(ST.A, 10), BB_TOP + 2, ST.A.oz + ROWZ.f + 4) },
+                             { text: "+ rail joined end to end", pos: V(colX(ST.A, 22), BB_TOP + 2, ST.A.oz + RAIL["+"]) },
+                             { text: "− rail", pos: V(colX(ST.A, 26), BB_TOP + 2, ST.A.oz + RAIL["-"] + 3) });
+      setTags(tags);
+      if (k === 0) { flyTo(OVER_P, OVER_T); return; }
+      const s = ST[st.st];
+      if (st.all) { focusOn([V(s.ox - 45, 0, s.oz - 60), V(s.ox + 175, 0, s.oz + 75)]); return; }
+      const pts = stepPoints[k].slice();
+      if (st.part) pts.push(V(colX(s, 4), 0, s.oz - 25), V(colX(s, 28), 0, s.oz + 25));
+      focusOn(pts, [V(s.ox - 40, 0, s.oz - 28), V(s.ox + 40, 0, s.oz + 28)]);
+    }
+
+    function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    new ResizeObserver(resize).observe(stage); resize();
+    canvas.addEventListener("pointerdown", () => { tween = null; });
+
+    const v = new THREE.Vector3();
+    (function loop(now) {
+      requestAnimationFrame(loop);
+      if (tween) {
+        const q = Math.min(1, (now - tween.t) / 900), e = q < .5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2;
+        camera.position.lerpVectors(tween.p0, tween.p1, e); controls.target.lerpVectors(tween.t0, tween.t1, e);
+        if (q === 1) tween = null;
+      }
+      controls.update(); renderer.render(scene, camera);
+      const w = stage.clientWidth, h = stage.clientHeight;
+      activeTags.forEach(t => {
+        v.copy(t.pos).project(camera);
+        t.el.style.visibility = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1 ? "visible" : "hidden";
+        t.el.style.left = ((v.x + 1) / 2 * w) + "px"; t.el.style.top = ((1 - v.y) / 2 * h - 6) + "px";
+      });
+    })(performance.now());
+    return { applyStep };
+  }
+})();
+</script>
