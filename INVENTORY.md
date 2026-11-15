@@ -114,6 +114,14 @@ _Last updated: 2026-11-15_
 | 6 | Dupont jumper wires, **female-to-female**, about 10 cm, rainbow ribbon | 2 packs (probably 40 wires each) | Sockets on both ends. They fit the male pins on the ESP32, HC-SR04, RCWL-0516 and CC1101 | Peel wires off the ribbon as needed. Use red for power and black or brown for GND. |
 | 8 | Dupont jumper wires, **male-to-female**, loose (mixed colours) | 10 | A pin on one end, a socket on the other. The socket goes on a module pin, the pin goes into a breadboard hole | Added 2026-11-15. Photo: `photos/jumpers-male-female.jpg`. |
 | 9 | **Mini breadboard, 170 holes**, blue | 1 | 17 rows × 2 halves of 5 holes, with a gap down the middle. **No + / − power rails.** Has dovetail tabs to clip boards together, and probably a sticky back | Added 2026-11-15. Photo: `photos/mini-breadboard-170.jpg`. Too small for the ESP32 (its pin rows are 25.4 mm apart). Good for small parts: transistor + resistor, a sensor, or a voltage divider. |
+| 14 | **Half-size breadboard, 400 holes**, white/translucent | 1 | 30 rows × 2 halves of 5 holes (`a–e` and `f–j`), gap down the middle, plus **2 power rails on each side** (25 holes each, in groups of 5) | Added 2026-11-15, a gift from a friend (not from the BOJACK order). Photo: `photos/breadboard-400.jpg`. Same width as an 830 board, so the ESP32 sits **beside** it, not on it (see below). |
+
+### Quick reference: 400-hole breadboard (#14)
+- **Main area:** each numbered row is connected in two strips of 5: `a–e` (left) and `f–j` (right). The middle gap breaks the connection, so a chip or module can straddle it.
+- **Power rails:** each rail column runs the full length (25 holes, printed groups of 5). The red line marks `+`, the blue line `−`. ⚠️ **The two sides are mirrored:** on the left side `+` is the **outer** column, on the right side `+` is the **inner** column (next to row `j`). Follow the coloured lines, not the position.
+- **The two sides' rails are not connected to each other.** To use both, add a jumper `+` → `+` and `−` → `−` across the board.
+- **Rail continuity:** on 400-hole boards the rails normally run unbroken from end to end (the lines on this one are unbroken too). Check with the multimeter's continuity mode once it arrives.
+- **ESP32:** its pin rows are 25.4 mm apart, so on this board it would cover almost every hole. Put it beside the breadboard and bring its pins over with M-F jumpers, as in `guides/station-build-3d.html`.
 
 ### Resistors
 
@@ -159,7 +167,7 @@ Move these into the tables above when they arrive. Build guide: `guides/station-
 |----------|------|-----|
 | Later | **USB logic analyzer** 24 MHz 8 ch (e.g. HiLetgo, ~$13) | See the CC1101's SPI signals in PulseView (`OPEN_ISSUES.md` issue 1). |
 
-Multimeter, full-size breadboards, more jumpers, the NPN transistor and soldering tools: on order (see above). Resistors (1 kΩ etc.), 10 M-F jumpers and a 170-hole mini breadboard are already owned (added 2026-11-15).
+Multimeter, full-size breadboards, more jumpers, the NPN transistor and soldering tools: on order (see above). Resistors (1 kΩ etc.), 10 M-F jumpers, a 170-hole mini breadboard and a 400-hole half-size breadboard with power rails are already owned (added 2026-11-15).
 
 ---
 _Source: package label "ESP-WROOM-32 ESP32-S Development Board Type C ... Color: Type C 30PIN", manufacturer Zhejiang Tianya Tongxing Technology Co., item no. 1049926807163._
