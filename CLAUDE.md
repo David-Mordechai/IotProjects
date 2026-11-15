@@ -36,7 +36,7 @@ A learning workspace for a **beginner in electronics** building ESP32 projects. 
   - CC1101 (SPI, 3.3 V only): CSN D5, SCK D18, MOSI D23, MISO D19, GDO0 D4, GDO2 D22 (not D2: the onboard LED and a boot strapping pin). GDO0 on D4 conflicts with the RCWL-0516, so move the RCWL to **D33** when both are used (not D21: deep-sleep wake on motion needs an RTC pin, GPIO 0, 2, 4, 12–15, 25–27, 32–39, and D21 isn't one).
   - The HW-394 silkscreen prints D4 as `D+` and VIN as `VN` (next to GND).
   - WS2812 LED/buzzer board: data INPUT on D13, power +5V from VIN. `BB-` sits at 5 V and must **never** go directly to a GPIO. Drive it through an NPN transistor (not owned yet).
-- The user has only **female-to-female** jumpers, with no breadboard, multimeter or soldering iron yet. Wiring plans must work with direct pin-to-pin F-F connections.
+- The user has **female-to-female** jumpers, 10 **male-to-female** jumpers, a 170-hole **mini breadboard** (no power rails, too small for the ESP32) and resistors (1 kΩ, 1.2 kΩ, 10 kΩ, 100 kΩ), added 2026-11-15. **The 1 kΩ (#10) and 10 kΩ (#12) values are only read from colour bands: until `INVENTORY.md` marks them measured, remind the user to measure them before any step that uses them.** No multimeter, soldering iron, transistor or full-size breadboard yet (on order, see `INVENTORY.md`). Until they arrive, wiring plans must work with these parts.
 
 ## Tooling
 
