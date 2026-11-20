@@ -173,7 +173,8 @@ td .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; m
       body: "The ESP32 sends a short 10 µs pulse on this wire to tell the sensor to send a ping." },
     { title: "Echo: D26 to Echo", color: "#2fa84f", name: "Green", side: -1, i: 8, sensor: "Echo",
       body: "The sensor holds this wire HIGH for as long as the echo takes to come back. Distance in cm = time in µs ÷ 58. D26 is right next to D25." },
-    { title: "Plug in USB-C", body: "Check all four wires against the table below, then connect the ESP32 to your PC with a USB-C data cable. The red PWR LED should light up. Next, we upload code.", wire: null, usb: true }
+    { title: "Plug in USB-C", body: "Check all four wires against the table below, then connect the ESP32 to your PC with a USB-C data cable. The red PWR LED should light up. Next, we upload code.", wire: null, usb: true },
+    { title: "Use it with WireClaw", body: "Use a second ESP32 for this sensor; the WireClaw board stays as it is. Upload firmware/distance-hello with the nats env (pio run -e nats -t upload). It sends the distance in cm to NATS twice a second, and the blue D2 LED blinks on every good reading. Then in the chat page (http://localhost:8090/) type: Register a nats_value sensor called distance with subject sensors.distance, unit cm. Ask: What is the distance? Or make a rule: When distance is below 20 cm, turn on GPIO 2.", wire: null, usb: true }
   ];
 
   const $ = id => document.getElementById(id);

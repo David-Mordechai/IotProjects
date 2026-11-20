@@ -1,0 +1,24 @@
+# Start:  docker compose -f tools/nats/docker-compose.yml up -d
+# Stop:   docker compose -f tools/nats/docker-compose.yml down
+services:
+  nats:
+    image: nats:2.15.2-alpine
+    container_name: wireclaw-nats
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    volumes:
+      - ./nats-server.conf:/etc/nats/nats-server.conf:ro
+    ports:
+      - "4222:4222"
+      - "8080:8080"
+      - "8222:8222"
+    restart: unless-stopped
+
+  # Serves the chat page: http://localhost:8090/ (or http://<PC-IP>:8090/ from a phone)
+  chat:
+    image: nginx:1.28-alpine
+    container_name: wireclaw-chat
+    volumes:
+      - ./wireclaw-chat.html:/usr/share/nginx/html/index.html:ro
+    ports:
+      - "8090:80"
+    restart: unless-stopped

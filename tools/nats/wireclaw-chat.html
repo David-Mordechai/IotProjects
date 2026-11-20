@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WireClaw Chat</title>
+<!--
+  Chat with a WireClaw board over NATS (runs on the PC, not on the board).
+  Served by the nginx container in tools/nats/docker-compose.yml:
+    http://localhost:8090/            (this PC)
+    http://192.168.1.151:8090/        (phone or other device on HomeLab)
+  Messages  -> request on "<device>.chat"  (board runs the LLM agent, replies)
+  /commands -> request on "<device>.cmd"   (e.g. /clear, /heap, /status, /help)
+  Board events ("<device>.events") are shown as small grey lines.
+-->
+<style>
+:root{
+  --bg:#0b0f14;--bg2:#111821;--bg3:#16202b;--border:#243241;--accent:#2ee6a6;
+  --accent-dim:rgba(46,230,166,0.12);--text:#e6edf3;--text2:#9fb0c0;--text3:#6b7d8f;--red:#ff4757;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --mono:"Cascadia Code","SF Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{--bg:#f5f7fa;--bg2:#ffffff;--bg3:#eef2f6;--border:#d5dde6;--accent:#0a8f63;
+  --accent-dim:rgba(10,143,99,0.10);--text:#16202b;--text2:#45566a;--text3:#6b7d8f;}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+.layout{max-width:1200px;margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 340px;
+  gap:16px;height:100vh}
+.wrap{display:flex;flex-direction:column;min-height:0;min-width:0}
+.help{overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;
+  display:flex;flex-direction:column;gap:14px;min-height:0}
+.help h2{font-size:0.95rem}
+.help h3{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent);margin-bottom:6px}
+.help p,.help li{font-size:0.8rem;color:var(--text2);line-height:1.45}
+.help ul{padding-left:16px;display:flex;flex-direction:column;gap:4px}
+.help code{font-family:var(--mono);font-size:0.78rem;color:var(--text)}
+.ex{display:flex;flex-direction:column;gap:6px}
+.ex button{display:block;width:100%;text-align:left;background:var(--bg3);color:var(--text);border:1px solid var(--border);
+  font-weight:400;font-size:0.8rem;line-height:1.4;padding:7px 10px;font-family:var(--font)}
+.ex button:hover{border-color:var(--accent)}
+.ex button .n{color:var(--accent);font-family:var(--mono);font-weight:700;margin-right:6px}
+.ex button.warnx{border-color:rgba(255,71,87,0.4)}
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr;height:auto}
+  .wrap{height:80vh}
+}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+header h1{font-size:1.2rem}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--text3)}
+.dot.on{background:var(--accent)}.dot.err{background:var(--red)}
+#state{font-size:0.8rem;color:var(--text2);font-family:var(--mono)}
+.settings{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.settings input{width:150px}
+input{padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  color:var(--text);font-family:var(--mono);font-size:0.85rem;min-width:0}
+input:focus{outline:none;border-color:var(--accent)}
+#log{flex:1;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:12px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:85%;padding:8px 12px;border-radius:10px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word;font-size:0.92rem}
+.me{align-self:flex-end;background:var(--accent-dim);border:1px solid var(--accent)}
+.bot{align-self:flex-start;background:var(--bg3);border:1px solid var(--border)}
+.sys{align-self:center;color:var(--text3);font-size:0.75rem;font-family:var(--mono);text-align:center}
+.err{color:var(--red)}
+.row{display:flex;gap:8px;margin-top:10px}
+.row input{flex:1}
+button{padding:8px 16px;border:none;border-radius:8px;background:var(--accent);color:var(--bg);
+  font-weight:600;cursor:pointer;font-size:0.9rem}
+button:disabled{opacity:0.5;cursor:default}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--border);font-weight:500}
+button.ghost[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.evt{align-self:center;max-width:90%;padding:6px 12px;border-radius:8px;font-size:0.88rem;
+  background:var(--accent-dim);border:1px dashed var(--accent);text-align:center}
+.hint{font-size:0.75rem;color:var(--text3);margin-top:6px}
+@media (max-width:520px){.settings{margin-left:0;width:100%}.settings input{flex:1;width:auto}}
+</style>
+</head>
+<body>
+<div class="layout">
+<div class="wrap">
+  <header>
+    <span class="dot" id="dot"></span>
+    <h1>WireClaw Chat</h1>
+    <span id="state">connecting...</span>
+    <div class="settings">
+      <button id="voice" type="button" class="ghost" aria-pressed="false" title="Speak each event the board sends">🔇 Voice off</button>
+      <input id="server" title="NATS WebSocket URL" aria-label="NATS WebSocket URL">
+      <input id="device" title="Board device name" aria-label="Board device name">
+    </div>
+  </header>
+  <div id="log" aria-live="polite"></div>
+  <div class="row">
+    <input id="text" placeholder="e.g. turn on the LED on GPIO 2   (or /clear, /heap, /help)" maxlength="500" autocomplete="off">
+    <button id="send">Send</button>
+  </div>
+  <p class="hint">The AI runs on the PC (Ollama). Answers take a few seconds. The board keeps chat history: send /clear if answers look stale.</p>
+</div>
+
+<aside class="help" aria-label="Help and examples">
+  <div>
+    <h2>Examples</h2>
+    <p>Click one to put it in the message box, check it, then press Enter. Send <b>one request per message</b>: the small AI model does one clear step well and mixes up long ones.</p>
+  </div>
+  <div id="examples"></div>
+  <div>
+    <h3>Tips</h3>
+    <ul>
+      <li>Use the tool words the agent knows: <code>sensor_name</code>, <code>condition lt</code> / <code>gt</code>, <code>threshold</code>, <code>interval_seconds</code>, <code>on_action</code>, <code>off_action</code>, <code>payload</code>.</li>
+      <li><code>{value}</code> in a message is replaced by the real reading when the rule fires.</li>
+      <li>Say <code>interval_seconds 1</code>, or the rule is checked only every 5 seconds.</li>
+      <li>Delete by ID (<code>rule_01</code>), never "the rules": the delete tool also accepts "all".</li>
+      <li>Order: register the device first, then the rule that uses it. When deleting: rule first, then the device.</li>
+      <li>Check the result on the board's page: <a href="http://192.168.1.155/" target="_blank" rel="noopener">192.168.1.155</a> → Devices / Rules.</li>
+    </ul>
+  </div>
+</aside>
+</div>
+
+<script type="module">
+import { wsconnect } from "https://cdn.jsdelivr.net/npm/@nats-io/nats-core@3.4.0/+esm";
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) || d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+$("server").value = store.get("wc.server", `ws://${location.hostname || "localhost"}:8080`);
+$("device").value = store.get("wc.device", "wireclaw-01");
+
+let nc = null, eventsSub = null, lastReply = "";
+
+function add(text, cls) {
+  const d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.textContent = text;
+  $("log").appendChild(d);
+  $("log").scrollTop = $("log").scrollHeight;
+  return d;
+}
+// ---- events + voice ----
+// Plain-text events (e.g. a rule's "Object close: 15.2 centimeters") are shown highlighted and
+// spoken. The board's automatic JSON events ({"event":"rule",...}, {"event":"online",...}) are
+// shown as a short log line and not spoken, so a rule isn't heard twice.
+let voiceOn = store.get("wc.voice", "0") === "1";
+const canSpeak = "speechSynthesis" in window;
+function renderVoice() {
+  const b = $("voice");
+  if (!canSpeak) { b.disabled = true; b.textContent = "Voice not supported"; return; }
+  b.setAttribute("aria-pressed", String(voiceOn));
+  b.textContent = voiceOn ? "🔊 Voice on" : "🔇 Voice off";
+}
+function speak(text) {
+  if (!voiceOn || !canSpeak) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US";
+  speechSynthesis.speak(u);   // queued: several events are read one after another
+}
+$("voice").addEventListener("click", () => {
+  voiceOn = !voiceOn; store.set("wc.voice", voiceOn ? "1" : "0"); renderVoice();
+  if (voiceOn) speak("Voice on"); else if (canSpeak) speechSynthesis.cancel();
+});
+renderVoice();
+
+// The board's rule messages are short fixed facts ("Object removed"). Ollama on the PC
+// rewrites each one as a natural, varied spoken sentence. Fast settings: thinking off,
+// short answer. If Ollama is slow or unreachable (e.g. CORS from a phone), the raw text is used.
+const OLLAMA = `http://${location.hostname || "localhost"}:11434/api/chat`;
+const PHRASE_MODEL = "qwen3.5:4b";
+async function phrase(fact) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const r = await fetch(OLLAMA, {
+      method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: PHRASE_MODEL, stream: false, think: false,
+        options: { temperature: 0.9, num_predict: 40 },
+        messages: [
+          { role: "system", content: "You are the friendly voice of a small desk sensor. Rephrase the sensor event as ONE short " +
+            "spoken sentence (at most 12 words). Say only what the event says: never add facts, distances, units or numbers " +
+            "that are not in it, and keep any number from it exactly. Call it 'object', never guess what it is. " +
+            "Vary your wording each time. No emojis, no quotes, no markdown." },
+          { role: "user", content: fact }
+        ]
+      })
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const out = ((await r.json()).message?.content || "").trim().replace(/^["']|["']$/g, "");
+    return out || fact;
+  } catch {
+    return fact;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+let eventChain = Promise.resolve();          // keep events in arrival order
+function onEvent(text) {
+  if (text === lastReply) return;            // the board also publishes each chat reply as an event
+  let j = null;
+  if (text.startsWith("{")) { try { j = JSON.parse(text); } catch {} }
+  if (j && j.event === "rule") {
+    add(`rule ${j.rule} ${j.state} · reading ${j.reading} (threshold ${j.threshold})`, "sys");
+  } else if (j) {
+    add("event: " + (j.event || text), "sys");
+  } else {
+    eventChain = eventChain.then(async () => {
+      const sentence = await phrase(text);
+      add("🔔 " + sentence, "evt");
+      if (sentence !== text) add("event: " + text, "sys");
+      speak(sentence);
+    });
+  }
+}
+
+function setState(text, cls) { $("state").textContent = text; $("dot").className = "dot " + (cls || ""); }
+
+async function connect() {
+  if (nc) { try { await nc.close(); } catch {} nc = null; }
+  const server = $("server").value.trim(), device = $("device").value.trim();
+  store.set("wc.server", server); store.set("wc.device", device);
+  setState("connecting...");
+  try {
+    nc = await wsconnect({ servers: server, maxReconnectAttempts: -1 });
+    setState(`connected · ${device}`, "on");
+    eventsSub = nc.subscribe(`${device}.events`);
+    (async () => { for await (const m of eventsSub) onEvent(m.string()); })();
+    nc.closed().then(() => setState("disconnected", "err"));
+  } catch (e) {
+    setState("not connected: " + e.message, "err");
+  }
+}
+
+async function send() {
+  const text = $("text").value.trim();
+  if (!text || !nc) return;
+  const device = $("device").value.trim();
+  $("text").value = ""; $("send").disabled = true;
+  add(text, "me");
+  const isCmd = text.startsWith("/");
+  const subject = isCmd ? `${device}.cmd` : `${device}.chat`;
+  const payload = isCmd ? text.slice(1) : text;
+  const wait = add(isCmd ? "running command..." : "thinking...", "sys");
+  const t0 = performance.now();
+  try {
+    // The board waits up to 120 s for the LLM; allow a little more.
+    const m = await nc.request(subject, payload, { timeout: 130000 });
+    wait.remove();
+    lastReply = m.string();
+    add(lastReply, "bot");
+    add(((performance.now() - t0) / 1000).toFixed(1) + " s", "sys");
+  } catch (e) {
+    wait.remove();
+    add("Error: " + e.message + (e.message.includes("no responders") ? " (is the board on and connected to NATS?)" : ""), "sys err");
+  } finally {
+    $("send").disabled = false; $("text").focus();
+  }
+}
+
+// ---- help panel: clickable examples (fill the box, do not send) ----
+const EXAMPLES = [
+  { title: "Set up the distance sensor (in this order)", items: [
+    { n: "1", text: "Register a nats_value device named distance with subject sensors.distance and unit cm" },
+    { n: "2", text: 'Create a rule named object: sensor_name distance, condition lt, threshold 20, interval_seconds 1. On action nats_publish to subject wireclaw-01.events with payload "Object detected at {value} centimeters". Off action nats_publish to subject wireclaw-01.events with payload "Object removed".' },
+    { n: "3", text: "List all rules" },
+  ]},
+  { title: "Ask the board", items: [
+    { text: "What is the distance?" },
+    { text: "List all devices" },
+    { text: "Turn on the LED on GPIO 2" },
+    { text: "Turn off the LED on GPIO 2" },
+  ]},
+  { title: "Delete and start over (rule first)", items: [
+    { n: "1", text: "List all rules" },
+    { n: "2", text: "Delete rule rule_01", warn: true },
+    { n: "3", text: "Remove the device named distance", warn: true },
+  ]},
+  { title: "Commands (instant, no AI)", items: [
+    { text: "/clear", note: "wipe the chat history" },
+    { text: "/heap", note: "free memory" },
+    { text: "/status", note: "Wi-Fi, model, NATS" },
+    { text: "/help", note: "all commands" },
+  ]},
+];
+for (const group of EXAMPLES) {
+  const box = document.createElement("div");
+  const h = document.createElement("h3"); h.textContent = group.title; box.appendChild(h);
+  const list = document.createElement("div"); list.className = "ex";
+  for (const it of group.items) {
+    const b = document.createElement("button");
+    b.type = "button";
+    if (it.warn) b.className = "warnx";
+    if (it.n) { const s = document.createElement("span"); s.className = "n"; s.textContent = it.n; b.appendChild(s); }
+    b.appendChild(document.createTextNode(it.text + (it.note ? `  — ${it.note}` : "")));
+    b.addEventListener("click", () => { $("text").value = it.text; $("text").focus(); });
+    list.appendChild(b);
+  }
+  box.appendChild(list);
+  $("examples").appendChild(box);
+}
+
+$("send").addEventListener("click", send);
+$("text").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+$("server").addEventListener("change", connect);
+$("device").addEventListener("change", connect);
+add("Chat with your WireClaw board over NATS. Commands start with /, e.g. /clear, /heap, /help.", "sys");
+connect();
+</script>
+</body>
+</html>

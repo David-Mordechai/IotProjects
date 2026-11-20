@@ -35,6 +35,11 @@ pio run
 
 This downloads the exact versions pinned in `platformio.ini` (ESP32 platform 8.0.0, RadioLib 7.8.1) and builds all programs. If VS Code still shows red errors on includes after that, run `pio project init --ide vscode` in the same folder.
 
+**WireClaw (`firmware\wireclaw`) needs two extra steps:**
+1. Turn on Windows long paths once. Run this in an **Administrator** PowerShell; no reboot was needed:
+   `Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1`
+2. Build it from **PowerShell**, not Git Bash. It uses the pioarduino platform, which downloads about 1 GB into its own folder `C:\pioa`. Then create `data\config.json` from `data\config.json.ollama.example`. See `firmware\wireclaw\PORT-NOTES.md`.
+
 ## 4. Upload and watch (radio project)
 
 Plug in a board, then find its port:

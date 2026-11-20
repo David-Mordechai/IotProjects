@@ -25,7 +25,7 @@ _Last updated: 2026-11-15_
 |---|------|-----|---------|-------|
 | 2 | HC-SR04 Ultrasonic Distance Sensor (newer multi-mode version) | 4 | Measures about 2 cm to 4 m. Pins: `Vcc`, `Trig/RX/SCL/IO`, `Echo/TX/SDA`, `Gnd` | `T` = transmitter, `R` = receiver. Pin labels show the newer version, which usually runs on 3 to 5.5 V and supports GPIO (default), UART and I2C modes. |
 
-| 3 | RCWL-0516 Microwave Radar Motion Sensor | 1 | Detects moving people/objects about 5 to 7 m away, **even through plastic, wood or thin walls**. Pins: `3V3`, `GND`, `OUT`, `VIN`, `CDS` | Bought 2; gave 1 to a friend. |
+| 3 | RCWL-0516 Microwave Radar Motion Sensor | 1 | Detects moving people/objects about 5 to 7 m away, **even through plastic, wood or thin walls**. Pins: `3V3`, `GND`, `OUT`, `VIN`, `CDS` | Bought 2; gave 1 to a friend. **Header pins come loose (not soldered):** 5 empty holes on one short end, labelled left to right `3V3 GND OUT VIN CDS` (component side up, holes at the bottom). It needs soldering before any wire fits. Green board; the RCWL-9196 chip runs lengthwise next to the pins; the wavy antenna trace, a 3-pin transistor and the diamond `CDS` pad are on the other half. Photo: `photos/rcwl0516-front-header-unsoldered.jpg`. |
 
 
 ## Communication (radio)

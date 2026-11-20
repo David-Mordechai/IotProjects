@@ -1,0 +1,563 @@
+<title>Radar Wiring Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one-screen workbench. 3D stage fills the left, a step-by-step instruction rail on the right; stacks on phones. */
+:root {
+  --bg: #eceff2;
+  --panel: #fbfcfd;
+  --ink: #161a1f;
+  --muted: #5a6470;
+  --line: #d5dbe2;
+  --accent: #a85a14;
+  --accent-soft: #f4e4d3;
+  --stage-a: #dde3e9;
+  --stage-b: #c9d1da;
+  --danger: #b42318;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+    --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --panel: #151a1f; --ink: #e6ebf0; --muted: #94a0ac; --line: #263039;
+  --accent: #e7a05a; --accent-soft: #3a2a1b; --stage-a: #141a20; --stage-b: #0a0d10; --danger: #f97066;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 40% 30%, var(--stage-a), var(--stage-b)); }
+#scene { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#scene:active { cursor: grabbing; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; transform: translate(-50%, -100%); white-space: nowrap;
+  font: 700 12px/1 var(--font-mono); padding: 5px 8px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .18); display: flex; align-items: center; gap: 6px; }
+.tag i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1px solid rgb(127 127 127 / .6); }
+.tag.part { font-family: var(--font-body); font-weight: 600; font-size: 12px; }
+.hint { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 6px; opacity: .92; }
+.rail { min-width: 0; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line);
+  padding-block: 22px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px; }
+.eyebrow { font: 600 11px/1 var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 26px/1.12 var(--font-display); margin: 8px 0 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 600 13px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+.card .count { font: 500 12px/1 var(--font-mono); color: var(--muted); }
+.card h3 { margin: 0; font: 700 20px/1.2 var(--font-display); display: flex; align-items: center; gap: 10px; }
+.card h3 .sw { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1px solid rgb(127 127 127 / .6); }
+.card p { margin: 0; }
+.card .warn { color: var(--danger); font-weight: 500; }
+.nav { display: flex; gap: 8px; }
+button { font: 600 14px/1 var(--font-body); border-radius: 8px; padding: 10px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, .steps button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.steps button { width: 100%; text-align: left; display: grid; grid-template-columns: 22px 14px 1fr; gap: 10px; align-items: center;
+  border: 1px solid transparent; background: transparent; padding: 9px 10px; font-weight: 500; }
+.steps button:hover { background: var(--bg); }
+.steps button[aria-current="step"] { background: var(--accent-soft); border-color: var(--accent); }
+.steps .n { font: 700 12px/1 var(--font-mono); color: var(--muted); }
+.steps .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgb(127 127 127 / .6); }
+.steps .sw.none { border-style: dashed; background: transparent; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.mono { font-family: var(--font-mono); font-weight: 700; font-size: 12px; }
+td .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid rgb(127 127 127 / .6); }
+.acc ul { margin: 6px 0 12px; padding-left: 18px; }
+.acc li { margin: 3px 0; }
+.acc .ok { color: var(--ink); font-weight: 600; }
+.acc .simp { color: var(--muted); font-weight: 600; }
+.small { font-size: 13px; color: var(--muted); }
+.err { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+@media (max-width: 820px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; height: auto; }
+  html, body { height: auto; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="scene" aria-label="3D model of an ESP32 board wired to an RCWL-0516 radar motion sensor"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan · click a wire</div>
+  </div>
+
+  <aside class="rail">
+    <header>
+      <div class="eyebrow">WireClaw · First sensor</div>
+      <h1>Wire the RCWL-0516 radar to your ESP32</h1>
+    </header>
+
+    <section class="card" aria-live="polite">
+      <div class="count" id="stepCount"></div>
+      <h3><span class="sw" id="stepSwatch"></span><span id="stepTitle"></span></h3>
+      <p id="stepBody"></p>
+      <p class="warn" id="stepWarn" hidden></p>
+      <div class="nav">
+        <button id="prev" type="button">Back</button>
+        <button id="next" type="button" class="primary">Next step</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Steps</h2>
+      <ol class="steps" id="steps"></ol>
+    </section>
+
+    <section>
+      <h2>Connections</h2>
+      <table>
+        <thead><tr><th>Wire</th><th>ESP32 pin</th><th>Radar pin</th></tr></thead>
+        <tbody id="conn"></tbody>
+      </table>
+      <p class="small">You need 3 female-to-female wires (10 cm) from your packs, and no breadboard, once the radar's header is soldered. Wire color doesn't matter electrically. These colors just make the guide easy to follow. The radar's <b>3V3</b> and <b>CDS</b> pins stay empty.</p>
+    </section>
+
+    <section class="acc">
+      <h2>How accurate is this model?</h2>
+      <span class="ok">Matches your hardware</span>
+      <ul>
+        <li>Pin order and pin names on both boards, copied from your photos (radar: <code>3V3 GND OUT VIN CDS</code>, see <code>photos/rcwl0516-package-label.jpg</code>).</li>
+        <li>Pin spacing of 2.54 mm, and the 25.4 mm gap between the ESP32's two pin rows.</li>
+        <li>ESP32 size within about 1 mm. Radar board 35.9 × 17.3 mm, the commonly published size (not measured on yours). Its layout follows your photo <code>photos/rcwl0516-front-header-unsoldered.jpg</code>: pin holes on one short end, the chip lengthwise beside them, the wavy antenna, transistor and diamond CDS pad on the other half.</li>
+        <li>Positions of the USB-C port, EN and BOOT buttons, and the PWR and D2 LEDs.</li>
+      </ul>
+      <span class="simp">Simplified</span>
+      <ul>
+        <li>Tiny parts (resistors, capacitors, the radar chip) are plain blocks, and their positions on the radar are approximate.</li>
+        <li>Board text is printed sideways on the real boards; here it is turned to read easily.</li>
+        <li>Wires are drawn neatly. Real 10 cm wires loop and drape.</li>
+        <li>The ESP32's pins point down, so the wire plugs go on from underneath. On your desk the board will rest on those plugs. </li>
+        <li>The radar is shown <b>after</b> soldering, with the header's long pins pointing down like the ESP32's. Yours came with the header loose. In use it senses in every direction and through plastic and thin walls; keep metal away from its back.</li>
+      </ul>
+    </section>
+  </aside>
+</div>
+
+<!-- Three.js r128, stored locally in ./lib so the page works offline -->
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+(function () {
+  const LEFT  = ["EN","VP","VN","D34","D35","D32","D33","D25","D26","D27","D14","D12","D13","GND","VIN"];
+  const RIGHT = ["D23","D22","TX0","RX0","D21","D19","D18","D5","D17","D16","D4","D2","D15","GND","3V3"];
+  const pinZ = i => -16 + i * 2.54;          // ESP32 pins along the board, antenna end first (mm)
+  const ESP_B = 20;                           // height of the ESP32 board's underside above the desk (mm)
+  const RC_X = -88, RC_Z = 8;                 // RCWL-0516 centre (board lies along x, pin end toward the ESP32)
+  const RC_L = 35.9, RC_W = 17.3;             // board size (mm)
+  const RC_EDGE = RC_X + RC_L / 2;            // short end with the 5 pin holes, facing the ESP32
+  const RC_HOLE_X = RC_EDGE - 1.6;            // pin holes, about 1.6 mm from that end
+  const RC_B = 20;                            // underside height: rests on its wire plugs, like the ESP32
+  const PIN_ORDER = ["3V3", "GND", "OUT", "VIN", "CDS"];
+  // Component side up, pin end toward the ESP32 (+x): 3V3 is nearest the viewer (+z), CDS farthest.
+  const SENSOR_Z = {}; PIN_ORDER.forEach((n, k) => SENSOR_Z[n] = RC_Z - (k - 2) * 2.54);
+
+  const STEPS = [
+    { title: "What you're building", body: "The RCWL-0516 radar tells the ESP32 when something moves nearby. It even senses through plastic, wood and thin walls. Your radar came with its 5-pin header loose, so it needs soldering first. After that, three wires connect it and no breadboard is needed. Keep the USB cable unplugged while you wire, and plug it in last.", wire: null },
+    { title: "Solder the header (first)", body: "Push the header's short pins into the 5 holes from the back of the board (the side without the big chip), so the long pins point down and the black plastic sits under the board. Turn it over and solder each pin on the chip side: touch the iron to pin and pad together for 2 to 3 seconds, then feed in a little solder until it forms a small shiny cone. Solder one end pin first, check the header is straight, then do the other four.", wire: null, solder: true,
+      warn: "This needs the soldering iron and solder arriving around Nov 29. Until then the wires cannot grip the empty holes, and just pushing the pins in gives loose contacts that the radar reads as fake motion. Wash your hands after soldering: this solder contains lead." },
+    { title: "Ground: GND to GND", color: "#1e1e1e", name: "Black", side: -1, i: 13, sensor: "GND",
+      body: "Connect ground first. Every part in a circuit has to share the same ground, the 0 V reference that all other voltages are measured from. Use the GND pin second from the USB end of the ESP32's left row, right next to VIN." },
+    { title: "Power: VIN to VIN", color: "#d62a2a", name: "Red", side: -1, i: 14, sensor: "VIN",
+      body: "VIN is the last pin in the same row, next to the USB port, printed VN on your board. It carries 5 V from USB. The radar's VIN accepts about 4 to 28 V, so 5 V is fine.",
+      warn: "Do not use the radar's 3V3 pin. It is an output from the radar's own regulator, not a power input. Leave it, and CDS, unconnected." },
+    { title: "Signal: OUT to D33", color: "#f0c419", name: "Yellow", side: -1, i: 6, sensor: "OUT",
+      body: "OUT goes HIGH (3.3 V) for about 2 seconds when the radar sees motion, and is LOW otherwise. 3.3 V is safe for an ESP32 pin. D33 is the pin our plan reserves for the radar: it is an RTC pin, so later it can also wake the ESP32 from deep sleep." },
+    { title: "Plug in USB-C", body: "Check all three wires against the table below, then connect the ESP32 to your PC with a USB-C data cable. The red PWR LED should light up. Keep still for a few seconds while the radar settles.", wire: null, usb: true },
+    { title: "Test it with WireClaw", body: "Open the chat page (http://localhost:8090/). Type: Register a digital_in sensor called radar on pin 33. Then: When radar goes high, turn on GPIO 2, and when it goes low, turn it off. Wave your hand near the radar: the blue D2 LED should light for about 2 seconds. To read it directly, ask: What is the radar value?", wire: null, usb: true }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), canvas = $("scene"), labelLayer = $("labels");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- Rail UI ----------
+  const stepsEl = $("steps");
+  STEPS.forEach((s, k) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button"; b.id = "step-" + k;
+    b.innerHTML = `<span class="n">${k}</span><span class="sw${s.color ? "" : " none"}"${s.color ? ` style="background:${s.color}"` : ""}></span><span>${s.title}</span>`;
+    b.addEventListener("click", () => setStep(k));
+    li.appendChild(b); stepsEl.appendChild(li);
+  });
+  $("conn").innerHTML = STEPS.filter(s => s.color).map(s => {
+    const espName = (s.side < 0 ? LEFT : RIGHT)[s.i];
+    return `<tr><td><span class="sw" style="background:${s.color}"></span>${s.name}</td><td class="mono">${espName}</td><td class="mono">${s.sensor}</td></tr>`;
+  }).join("");
+  $("prev").addEventListener("click", () => setStep(current - 1));
+  $("next").addEventListener("click", () => setStep(current + 1));
+  addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest("input,textarea")) return;
+    if (e.key === "ArrowRight") setStep(current + 1);
+    if (e.key === "ArrowLeft") setStep(current - 1);
+  });
+
+  if (!window.THREE || !THREE.OrbitControls) {
+    stage.insertAdjacentHTML("beforeend", '<div class="err">The 3D view could not load. Make sure the lib folder (three.min.js and OrbitControls.js) is next to this page. The steps on the right still work.</div>');
+  }
+
+  let current = 0;
+  let three = null;
+
+  function renderRail() {
+    const s = STEPS[current];
+    $("stepCount").textContent = current === 0 ? "Overview" : `Step ${current} of ${STEPS.length - 1}`;
+    $("stepTitle").textContent = s.title;
+    $("stepBody").textContent = s.body;
+    const w = $("stepWarn"); w.hidden = !s.warn; w.textContent = s.warn || "";
+    const sw = $("stepSwatch");
+    sw.style.background = s.color || "transparent";
+    sw.style.borderStyle = s.color ? "solid" : "dashed";
+    $("prev").disabled = current === 0;
+    $("next").disabled = current === STEPS.length - 1;
+    $("next").textContent = current === 0 ? "Start wiring" : "Next step";
+    STEPS.forEach((_, k) => {
+      const b = $("step-" + k);
+      if (k === current) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+    });
+  }
+  function setStep(k) {
+    if (k < 0 || k >= STEPS.length) return;
+    current = k;
+    renderRail();
+    if (three) three.applyStep(k);
+  }
+  renderRail();
+
+  if (!window.THREE || !THREE.OrbitControls) return;
+
+  const start = () => { three = build(); three.applyStep(current); };
+  (document.fonts && document.fonts.ready ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]) : Promise.resolve()).then(start);
+
+  // ---------- 3D ----------
+  function build() {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, 1, 1, 3000);
+    const controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.minDistance = 30; controls.maxDistance = 600;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4450, 0.75));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+    sun.position.set(-70, 180, 110); sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -170, right: 120, top: 120, bottom: -120, near: 10, far: 500 });
+    sun.shadow.bias = -0.0005;
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(120, 80, -60); scene.add(fill);
+
+    const tex = (w, h, draw) => {
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      draw(c.getContext("2d"), w, h);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
+    };
+    const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.6, metalness: 0.05 }, o));
+    const M = {
+      pcb: std(0x15171a), modPcb: std(0x1b1d20), shield: std(0xc4c8ce, { metalness: 0.55, roughness: 0.35 }),
+      metal: std(0xc9cdd3, { metalness: 0.6, roughness: 0.3 }), gold: std(0xd3ad5f, { metalness: 0.6, roughness: 0.3 }),
+      black: std(0x111214, { roughness: 0.75 }), chip: std(0x1a1a1c, { roughness: 0.5 }), cap: std(0xb59a72),
+      hcPcb: std(0x1d5fbf), housing: std(0x0e0f10, { roughness: 0.55 }), button: std(0x2a2a2a)
+    };
+    const add = (geo, mat, x, y, z, shadow = true) => {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+      m.castShadow = shadow; m.receiveShadow = true; scene.add(m); return m;
+    };
+    const box = (w, h, d, mat, x, y, z) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    const decal = (w, d, texture, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, transparent: true }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m;
+    };
+
+    // Desk mat with a 10 mm grid
+    const mat = decal(340, 220, tex(1360, 880, (g, w, h) => {
+      g.fillStyle = "#232a33"; g.fillRect(0, 0, w, h);
+      for (let x = 0; x <= w; x += 40) { g.fillStyle = x % 400 === 0 ? "rgba(120,160,220,.32)" : "rgba(120,160,220,.13)"; g.fillRect(x, 0, 2, h); }
+      for (let y = 0; y <= h; y += 40) { g.fillStyle = y % 400 === 0 ? "rgba(120,160,220,.32)" : "rgba(120,160,220,.13)"; g.fillRect(0, y, w, 2); }
+    }), -40, 0, 10);
+    mat.material.transparent = false;
+
+    // ----- ESP32 dev board (HW-394), pins pointing down -----
+    const top = ESP_B + 1.6;
+    box(28.5, 1.6, 51.5, M.pcb, 0, ESP_B + 0.8, 0);
+    const s = 20;
+    decal(28.5, 51.5, tex(28.5 * s, 51.5 * s, (g, w, h) => {
+      g.fillStyle = "#15171a"; g.fillRect(0, 0, w, h);
+      const X = x => (x + 14.25) * s, Y = z => (z + 25.75) * s;
+      g.strokeStyle = "rgba(255,255,255,.06)"; g.lineWidth = 5;
+      for (let k = 0; k < 9; k++) { g.beginPath(); g.moveTo(X(-6 + k * 1.5), Y(2)); g.lineTo(X(-6 + k * 1.5), Y(6)); g.lineTo(X(-9 + k * 2), Y(13)); g.stroke(); }
+      [[2.4, 2.4], [26.1, 2.4], [2.4, 49.1], [26.1, 49.1]].forEach(([x, y]) => {
+        g.fillStyle = "#c3c7cc"; g.beginPath(); g.arc(x * s, y * s, 1.7 * s, 0, 7); g.fill();
+        g.fillStyle = "#050505"; g.beginPath(); g.arc(x * s, y * s, 1.05 * s, 0, 7); g.fill();
+      });
+      for (let i = 0; i < 15; i++) [-12.7, 12.7].forEach(x => {
+        g.fillStyle = "#c9cdd3"; g.beginPath(); g.arc(X(x), Y(pinZ(i)), 0.85 * s, 0, 7); g.fill();
+      });
+      g.fillStyle = "#f2f2f2"; g.textBaseline = "middle"; g.font = '700 21px "JetBrains Mono", monospace';
+      LEFT.forEach((n, i) => { g.textAlign = "left"; g.fillText(n, X(-12.7) + 24, Y(pinZ(i))); });
+      RIGHT.forEach((n, i) => { g.textAlign = "right"; g.fillText(n, X(12.7) - 24, Y(pinZ(i))); });
+      g.textAlign = "center"; g.font = '700 19px "JetBrains Mono", monospace';
+      g.fillText("PWR", X(-3), Y(-0.2)); g.fillText("D2", X(4), Y(-0.2));
+      g.fillText("EN", X(-9), Y(18.4)); g.fillText("BOOT", X(9), Y(18.4));
+      g.font = '700 22px "JetBrains Mono", monospace'; g.fillText("HW-394", X(1), Y(15.6));
+    }), 0, top + 0.01, 0);
+
+    // ESP-32D module
+    box(18, 0.8, 25.5, M.modPcb, 0, top + 0.4, -13);
+    decal(18, 6.5, tex(360, 130, (g, w, h) => {
+      g.fillStyle = "#1b1d20"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#c9a45a"; g.lineWidth = 9; g.beginPath();
+      let x = 40; g.moveTo(x, 110);
+      for (let k = 0; k < 5; k++) { g.lineTo(x, 25); g.lineTo(x + 28, 25); g.lineTo(x + 28, 95); g.lineTo(x + 56, 95); x += 56; }
+      g.lineTo(x, 25); g.lineTo(330, 25); g.stroke();
+    }), 0, top + 0.81, -22.4);
+    box(16, 2.4, 17, M.shield, 0, top + 0.8 + 1.2, -9.5);
+    decal(16, 17, tex(320, 340, (g, w, h) => {
+      g.fillStyle = "#c4c8ce"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#4a4e55"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = '700 46px "IBM Plex Sans", sans-serif'; g.fillText("ESP-32D", 175, 70);
+      g.font = '600 32px "IBM Plex Sans", sans-serif'; g.fillText("WiFi+BT  N4XX", 160, 145);
+      g.lineWidth = 5; g.strokeStyle = "#4a4e55";
+      [70, 160, 250].forEach(cx => { g.beginPath(); g.arc(cx, 230, 30, 0, 7); g.stroke(); });
+      g.font = '700 30px "IBM Plex Sans", sans-serif'; g.fillText("FC  CE", 210, 300);
+    }), 0, top + 3.21, -9.5);
+
+    // Parts on the board
+    box(4, 1.5, 10, M.chip, 1, top + 0.75, 9.5);                                   // CH340C
+    for (let k = 0; k < 8; k++) [-1, 1].forEach(sd => box(1.4, 0.35, 0.42, M.metal, 1 + sd * 2.6, top + 0.25, 5.05 + k * 1.27));
+    box(6.5, 1.6, 3.5, M.chip, -8, top + 0.8, 10);                                  // AMS1117 regulator
+    box(3.2, 0.6, 1.6, M.metal, -8, top + 0.3, 12.5);
+    [[-3, 1.5, 0xff3b30], [4, 1.5, 0x8fb8ff]].forEach(([x, z, c]) => {           // PWR + D2 LEDs
+      box(1.6, 0.6, 0.8, std(0xf3f3f3, { emissive: c, emissiveIntensity: 0 }), x, top + 0.3, z).userData.led = c;
+    });
+    [[-6, 3.2], [7, 6], [-4, 13], [6, 13.5], [-11, 5]].forEach(([x, z]) => box(1.6, 0.8, 0.8, M.cap, x, top + 0.4, z));
+    box(9, 3.2, 7.5, M.metal, 0, top + 1.6, 23);                                    // USB-C
+    box(6.6, 1.2, 0.2, M.black, 0, top + 1.6, 26.8);
+    [[-9, "EN"], [9, "BOOT"]].forEach(([x]) => {
+      box(3.6, 1.4, 6, M.metal, x, top + 0.7, 22.5);
+      add(new THREE.CylinderGeometry(1.25, 1.25, 1.2, 20), M.button, x, top + 1.9, 22.5);
+    });
+
+    // Headers and pins (pointing down)
+    [-12.7, 12.7].forEach(x => box(2.5, 2.5, 38.1, M.black, x, ESP_B - 1.25, pinZ(7)));
+    const pinTop = top + 1.0, pinBot = ESP_B - 8.5;
+    for (let i = 0; i < 15; i++) [-12.7, 12.7].forEach(x => {
+      box(0.64, pinTop - pinBot, 0.64, M.gold, x, (pinTop + pinBot) / 2, pinZ(i));
+      add(new THREE.CylinderGeometry(0.9, 0.9, 0.5, 12), M.metal, x, top + 0.25, pinZ(i), false);
+    });
+
+    // ----- RCWL-0516 (from photos/rcwl0516-front-header-unsoldered.jpg), component side up,
+    //       header soldered with the long pins pointing down like the ESP32's -----
+    const rcTop = RC_B + 1.6;
+    box(RC_L, 1.6, RC_W, std(0x1f7a3a), RC_X, RC_B + 0.8, RC_Z);
+    decal(RC_L, RC_W, tex(RC_L * 20, RC_W * 20, (g, w, h) => {
+      const X = x => (x - (RC_X - RC_L / 2)) * 20, Y = z => (z - (RC_Z - RC_W / 2)) * 20;
+      g.fillStyle = "#1f7a3a"; g.fillRect(0, 0, w, h);
+      // wavy antenna trace on the half away from the pins
+      g.strokeStyle = "#4fae68"; g.lineWidth = 26; g.lineJoin = "round"; g.beginPath();
+      let x = X(RC_X - RC_L / 2 + 3.5); g.moveTo(x, Y(RC_Z - 6));
+      for (let k = 0; k < 4; k++) { g.lineTo(x, Y(RC_Z + 5.5)); x += 50; g.lineTo(x, Y(RC_Z + 5.5)); g.lineTo(x, Y(RC_Z - 5.5)); x += 50; g.lineTo(x, Y(RC_Z - 5.5)); }
+      g.stroke();
+      // diamond CDS pad (light sensor footprint) at the far end
+      g.save(); g.translate(X(RC_X - RC_L / 2 + 4.3), Y(RC_Z - 4.6)); g.rotate(Math.PI / 4);
+      g.fillStyle = "#9ad0a8"; g.fillRect(-55, -55, 110, 110); g.fillStyle = "#1f7a3a"; g.fillRect(-40, -40, 80, 80);
+      g.fillStyle = "#c9cdd3"; [[-22, 0], [22, 0]].forEach(([a, b]) => { g.beginPath(); g.arc(a, b, 11, 0, 7); g.fill(); });
+      g.restore();
+      // mounting holes
+      [[RC_X - RC_L / 2 + 1.6, RC_Z - RC_W / 2 + 1.6], [RC_X - RC_L / 2 + 1.6, RC_Z + RC_W / 2 - 1.6],
+       [RC_X + 2, RC_Z - RC_W / 2 + 1.4], [RC_X + 2, RC_Z + RC_W / 2 - 1.4]].forEach(([a, b]) => {
+        g.fillStyle = "#c9cdd3"; g.beginPath(); g.arc(X(a), Y(b), 18, 0, 7); g.fill();
+        g.fillStyle = "#0b2a14"; g.beginPath(); g.arc(X(a), Y(b), 10, 0, 7); g.fill();
+      });
+      // pin pads and labels (labels read from the pin end, as on the board)
+      g.fillStyle = "#c9cdd3"; PIN_ORDER.forEach(n => { g.beginPath(); g.arc(X(RC_HOLE_X), Y(SENSOR_Z[n]), 16, 0, 7); g.fill(); });
+      g.fillStyle = "#eaf7ee"; g.textBaseline = "middle"; g.textAlign = "right"; g.font = '700 20px "JetBrains Mono", monospace';
+      PIN_ORDER.forEach(n => g.fillText(n, X(RC_HOLE_X - 1.5), Y(SENSOR_Z[n])));
+      g.font = '700 18px "JetBrains Mono", monospace'; g.textAlign = "left"; g.fillText("CDS", X(RC_X - RC_L / 2 + 7.5), Y(RC_Z - 2.8));
+    }), RC_X, rcTop + 0.01, RC_Z);
+    // RCWL-9196 chip (SOIC-16) lengthwise next to the pins, with its legs
+    box(10, 1.5, 4, M.chip, RC_EDGE - 10.5, rcTop + 0.75, RC_Z);
+    for (let k = 0; k < 8; k++) [-1, 1].forEach(sd => box(0.42, 0.35, 1.2, M.metal, RC_EDGE - 14.95 + k * 1.27, rcTop + 0.2, RC_Z + sd * 2.6));
+    box(2.9, 1.0, 1.6, M.chip, RC_X - 7, rcTop + 0.5, RC_Z + 1);                       // RF transistor (SOT-23)
+    [[RC_EDGE - 16.5, RC_Z - 5.5], [RC_EDGE - 16.5, RC_Z + 5.5], [RC_EDGE - 4.5, RC_Z - 5.8], [RC_EDGE - 4.5, RC_Z + 5.8],
+     [RC_EDGE - 10.5, RC_Z - 6.4], [RC_EDGE - 10.5, RC_Z + 6.4], [RC_EDGE - 7, RC_Z - 6.4], [RC_EDGE - 14, RC_Z + 6.4],
+     [RC_X - 12, RC_Z - 6.6], [RC_X - 5, RC_Z + 6.6], [RC_X - 3, RC_Z - 3]]
+      .forEach(([a, b]) => box(1.6, 0.7, 0.8, M.cap, a, rcTop + 0.35, b));
+    // soldered header: plastic under the board, long pins pointing down
+    box(2.5, 2.5, 12.7, M.black, RC_HOLE_X, RC_B - 1.25, RC_Z);
+    PIN_ORDER.forEach(n => {
+      box(0.64, rcTop + 1.0 - (RC_B - 8.5), 0.64, M.gold, RC_HOLE_X, (rcTop + 1.0 + RC_B - 8.5) / 2, SENSOR_Z[n]);
+      add(new THREE.CylinderGeometry(0.95, 0.75, 0.6, 12), M.metal, RC_HOLE_X, rcTop + 0.3, SENSOR_Z[n], false);  // solder joint
+    });
+    const solderMarks = PIN_ORDER.map(n => {
+      const m = add(new THREE.TorusGeometry(1.5, 0.22, 8, 24), std(0xffb020, { emissive: 0xffa000, emissiveIntensity: 1 }), RC_HOLE_X, rcTop + 0.7, SENSOR_Z[n], false);
+      m.rotation.x = Math.PI / 2; m.visible = false; return m;
+    });
+
+    // ----- Wires -----
+    const wires = [];
+    STEPS.forEach((st, k) => {
+      if (!st.color) return;
+      const zs = SENSOR_Z[st.sensor];
+      const px = st.side * 12.7, pz = pinZ(st.i);
+      const hcHousing = box(2.5, 14, 2.5, M.housing.clone(), RC_HOLE_X, RC_B - 2.5 - 7, zs);
+      const espHousing = box(2.5, 14, 2.5, M.housing.clone(), px, ESP_B - 2.5 - 7, pz);
+      const ey = ESP_B - 16.5, ry = RC_B - 16.5;
+      const lift = { 2: 3.2, 3: 6.5, 4: 9.5 }[k];
+      const pts = [
+        new THREE.Vector3(RC_HOLE_X, ry, zs), new THREE.Vector3(RC_HOLE_X + 1.2, 1.9, zs), new THREE.Vector3(RC_HOLE_X + 8, 1.25, zs),
+        new THREE.Vector3((RC_HOLE_X + px) / 2, lift, (zs + pz) / 2),
+        new THREE.Vector3(px - 8, 1.25, pz), new THREE.Vector3(px - 1.2, 1.9, pz), new THREE.Vector3(px, ey, pz)
+      ];
+      const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+      const wm = new THREE.MeshStandardMaterial({ color: st.color, roughness: 0.45, transparent: true });
+      const tube = add(new THREE.TubeGeometry(curve, 160, 0.68, 12, false), wm, 0, 0, 0);
+      tube.userData.step = k; hcHousing.userData.step = k; espHousing.userData.step = k;
+      wires.push({ step: k, meshes: [tube, hcHousing, espHousing],
+        tagEsp: { text: (st.side < 0 ? LEFT : RIGHT)[st.i], color: st.color, pos: new THREE.Vector3(px, ESP_B - 2.5, pz) },
+        tagHc: { text: st.sensor, color: st.color, pos: new THREE.Vector3(RC_HOLE_X, RC_B - 2.5, zs) },
+        focus: new THREE.Vector3((RC_HOLE_X + px) / 2, 6, (zs + pz) / 2) });
+    });
+
+    // ----- USB cable -----
+    const usb = new THREE.Group(); scene.add(usb);
+    const plug = new THREE.Mesh(new THREE.BoxGeometry(11, 6, 16), std(0x2b2f35, { roughness: 0.5 }));
+    plug.position.set(0, top + 1.6, 26.75 + 8); plug.castShadow = true; usb.add(plug);
+    const cableCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, top + 1.6, 42.7), new THREE.Vector3(0, top, 55), new THREE.Vector3(6, 2, 72),
+      new THREE.Vector3(20, 1.6, 95), new THREE.Vector3(40, 1.6, 118)
+    ]);
+    const cable = new THREE.Mesh(new THREE.TubeGeometry(cableCurve, 80, 1.8, 12, false), std(0x2b2f35, { roughness: 0.5 }));
+    cable.castShadow = true; usb.add(cable);
+
+    const leds = []; scene.traverse(o => { if (o.userData && o.userData.led) leds.push(o); });
+
+    // ----- Floating labels -----
+    const parts = [
+      { text: "ESP32 (HW-394)", pos: new THREE.Vector3(0, top + 6, -14), part: true },
+      { text: "RCWL-0516 radar", pos: new THREE.Vector3(RC_X - 4, RC_B + 7, RC_Z), part: true },
+      { text: "USB-C to your PC", pos: new THREE.Vector3(14, 6, 92), part: true, usbOnly: true }
+    ];
+    let activeTags = [];
+    function setTags(list) {
+      labelLayer.innerHTML = "";
+      activeTags = list.map(t => {
+        const el = document.createElement("div");
+        el.className = "tag" + (t.part ? " part" : "");
+        el.innerHTML = (t.color ? `<i style="background:${t.color}"></i>` : "") + t.text;
+        labelLayer.appendChild(el);
+        return { el, pos: t.pos };
+      });
+    }
+
+    // ----- Camera moves -----
+    let tween = null;
+    function flyTo(pos, target) {
+      const narrow = stage.clientWidth / Math.max(1, stage.clientHeight) < 1.05;
+      if (narrow) pos = target.clone().add(pos.clone().sub(target).multiplyScalar(1.45));
+      if (reduceMotion) { camera.position.copy(pos); controls.target.copy(target); return; }
+      tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, t: performance.now() };
+    }
+    const overviewTarget = new THREE.Vector3(-42, 6, 6);
+    camera.position.set(-25, 150, 175); controls.target.copy(overviewTarget);
+
+    function applyStep(k) {
+      const st = STEPS[k];
+      wires.forEach(w => w.meshes.forEach((m, j) => {
+        const on = !st.color || w.step === k;
+        m.material.transparent = !on; m.material.opacity = on ? 1 : 0.14;
+        if (j > 0) { m.material.emissive = new THREE.Color(w.step === k ? 0x553300 : 0x000000); }
+      }));
+      usb.visible = k === 0 || !!st.usb;
+      const testStep = k === STEPS.length - 1;
+      solderMarks.forEach(m => m.visible = !!st.solder);
+      leds.forEach(l => {
+        const on = (st.usb && l.userData.led === 0xff3b30) || (testStep && l.userData.led === 0x8fb8ff);
+        l.material.emissiveIntensity = on ? 1.6 : 0;
+      });
+      if (st.color) {
+        const w = wires.find(x => x.step === k);
+        setTags([w.tagEsp, w.tagHc]);
+        flyTo(w.focus.clone().add(new THREE.Vector3(25, 75, 95)), w.focus);
+      } else if (st.solder) {
+        setTags([{ text: "Solder these 5 pins", pos: new THREE.Vector3(RC_HOLE_X, rcTop + 4, RC_Z), part: true }]);
+        flyTo(new THREE.Vector3(RC_X + 40, 70, RC_Z + 70), new THREE.Vector3(RC_HOLE_X - 4, RC_B, RC_Z));
+      } else if (testStep) {
+        setTags([parts[1], { text: "D2 LED lights on motion", pos: new THREE.Vector3(4, top + 4, 1.5), part: true }]);
+        flyTo(new THREE.Vector3(-20, 110, 120), new THREE.Vector3(-40, 4, 6));
+      } else if (st.usb) {
+        setTags([parts[0], parts[2]]);
+        flyTo(new THREE.Vector3(75, 85, 130), new THREE.Vector3(0, 14, 35));
+      } else {
+        setTags(parts.filter(p => !p.usbOnly).concat([parts[2]]));
+        flyTo(new THREE.Vector3(-25, 150, 175), overviewTarget);
+      }
+    }
+
+    // Click a wire to jump to its step
+    const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+    let down = null;
+    canvas.addEventListener("pointerdown", e => { down = [e.clientX, e.clientY]; tween = null; });
+    canvas.addEventListener("pointerup", e => {
+      if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+      const r = canvas.getBoundingClientRect();
+      mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(mouse, camera);
+      const hit = ray.intersectObjects(wires.flatMap(w => w.meshes))[0];
+      if (hit) setStep(hit.object.userData.step);
+    });
+
+    function resize() {
+      const w = stage.clientWidth, h = stage.clientHeight;
+      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    }
+    new ResizeObserver(resize).observe(stage); resize();
+
+    const v = new THREE.Vector3();
+    (function loop(now) {
+      requestAnimationFrame(loop);
+      if (tween) {
+        const k = Math.min(1, (now - tween.t) / 900), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        camera.position.lerpVectors(tween.p0, tween.p1, e); controls.target.lerpVectors(tween.t0, tween.t1, e);
+        if (k === 1) tween = null;
+      }
+      controls.update();
+      renderer.render(scene, camera);
+      const w = stage.clientWidth, h = stage.clientHeight;
+      activeTags.forEach(t => {
+        v.copy(t.pos).project(camera);
+        const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+        t.el.hidden = !vis;
+        t.el.style.left = ((v.x + 1) / 2 * w) + "px";
+        t.el.style.top = ((1 - v.y) / 2 * h - 6) + "px";
+      });
+    })(performance.now());
+
+    return { applyStep };
+  }
+})();
+</script>
