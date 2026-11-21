@@ -170,9 +170,11 @@ LlmClient::LlmClient()
     m_path[0] = '\0';
 }
 
-void LlmClient::begin(const char *api_key, const char *model, const char *base_url) {
+void LlmClient::begin(const char *api_key, const char *model, const char *base_url,
+                      const char *reasoning_effort) {
     m_api_key = api_key;
     m_model = model;
+    m_reasoning = reasoning_effort;
 
     /* Parse base_url or use defaults */
     if (base_url && base_url[0]) {
@@ -319,6 +321,16 @@ int LlmClient::buildRequest(char *buf, int buf_len,
     if (tools_json && tools_json[0]) {
         w += snprintf(buf + w, buf_len - w,
             ",\"tools\":%s,\"tool_choice\":\"auto\"", tools_json);
+        if (w >= buf_len) return -1;
+    }
+
+    /* Optional "reasoning_effort" (config.json "llm_reasoning"). Thinking
+     * models on Ollama's /v1 endpoint put their draft in a separate
+     * "reasoning" field that we don't read, and sometimes leave "content"
+     * empty -> "No content in response" (seen 2026-11-21, qwen3.5:4b).
+     * "none" turns thinking off; Ollama ignores "think":false on /v1. */
+    if (m_reasoning && m_reasoning[0]) {
+        w += snprintf(buf + w, buf_len - w, ",\"reasoning_effort\":\"%s\"", m_reasoning);
         if (w >= buf_len) return -1;
     }
 

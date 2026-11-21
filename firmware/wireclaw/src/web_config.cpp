@@ -170,14 +170,16 @@ static void handlePostConfig() {
         const char *key;
         char val[128];
     };
-    BIG_TEMP(Field[12], fields);
+    /* Every key that config.json may hold: a key missing here is dropped
+     * when the page saves. llm_reasoning added 2026-11-21. */
+    BIG_TEMP(Field[13], fields);
     const char *keys[] = {
         "wifi_ssid", "wifi_pass", "api_key", "model", "device_name",
         "api_base_url", "nats_host", "nats_port", "telegram_token",
-        "telegram_chat_id", "telegram_cooldown", "timezone"
+        "telegram_chat_id", "telegram_cooldown", "timezone", "llm_reasoning"
     };
 
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 13; i++) {
         fields[i].key = keys[i];
         fields[i].val[0] = '\0';
 
@@ -199,10 +201,10 @@ static void handlePostConfig() {
     }
 
     f.print("{\n");
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 13; i++) {
         f.print("  \""); f.print(fields[i].key); f.print("\": ");
         wcWriteJsonEscaped(f, fields[i].val);
-        if (i < 11) f.print(",");
+        if (i < 12) f.print(",");
         f.print("\n");
     }
     f.print("}\n");

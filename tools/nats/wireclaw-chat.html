@@ -109,6 +109,9 @@ button.ghost[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)
       <li>Use the tool words the agent knows: <code>sensor_name</code>, <code>condition lt</code> / <code>gt</code>, <code>threshold</code>, <code>interval_seconds</code>, <code>on_action</code>, <code>off_action</code>, <code>payload</code>.</li>
       <li><code>{value}</code> in a message is replaced by the real reading when the rule fires.</li>
       <li>Say <code>interval_seconds 1</code>, or the rule is checked only every 5 seconds.</li>
+      <li>Registering and asking work in plain words (tested 3/3). For rules, copy the field-style examples and change only names and numbers (tested 8/8 and 4/4). A plain sentence like "publish X when below 20, and Y when it goes back above" worked only 1 time in 8: the model made two opposite rules, a wrong one, or none.</li>
+      <li>"Goes back above" is the same rule's <b>off action</b>, never a second rule. The board now refuses an exact opposite rule (same sensor and threshold, lt ↔ gt) and a rule with no on_action.</li>
+      <li>Two rules on the same condition are fine (e.g. <code>object</code> speaks, <code>close_led</code> lights GPIO 2).</li>
       <li>Delete by ID (<code>rule_01</code>), never "the rules": the delete tool also accepts "all".</li>
       <li>Order: register the device first, then the rule that uses it. When deleting: rule first, then the device.</li>
       <li>Check the result on the board's page: <a href="http://192.168.1.155/" target="_blank" rel="noopener">192.168.1.155</a> → Devices / Rules.</li>
@@ -260,21 +263,28 @@ async function send() {
 
 // ---- help panel: clickable examples (fill the box, do not send) ----
 const EXAMPLES = [
+  // One board: the HC-SR04 is wired to the WireClaw ESP32 itself (Trig D25, Echo D26), see
+  // guides/hcsr04-breadboard-3d.html. Every example below was tested on the real model on 2026-11-21.
   { title: "Set up the distance sensor (in this order)", items: [
-    { n: "1", text: "Register a nats_value device named distance with subject sensors.distance and unit cm" },
-    { n: "2", text: 'Create a rule named object: sensor_name distance, condition lt, threshold 20, interval_seconds 1. On action nats_publish to subject wireclaw-01.events with payload "Object detected at {value} centimeters". Off action nats_publish to subject wireclaw-01.events with payload "Object removed".' },
-    { n: "3", text: "List all rules" },
+    { n: "1", text: "/clear", note: "start fresh" },
+    { n: "2", text: "I connected an HC-SR04 ultrasonic distance sensor, Trig on pin 25, Echo on pin 26. Register it as distance." },
+    { n: "3", text: 'Create a rule named object: sensor_name distance, condition lt, threshold 20, interval_seconds 1. On action nats_publish to subject wireclaw-01.events with payload "Object detected at {value} centimeters". Off action nats_publish to subject wireclaw-01.events with payload "Object removed".' },
+    { n: "4", text: "List all rules" },
+  ]},
+  { title: "Also light the blue LED when something is close", items: [
+    { text: "Create a rule named close_led: sensor_name distance, condition lt, threshold 20, interval_seconds 1. On action gpio_write with on_pin 2 and on_value 1. Off action gpio_write with off_pin 2 and off_value 0." },
   ]},
   { title: "Ask the board", items: [
-    { text: "What is the distance?" },
+    { text: "How far is the nearest object?" },
     { text: "List all devices" },
     { text: "Turn on the LED on GPIO 2" },
     { text: "Turn off the LED on GPIO 2" },
   ]},
-  { title: "Delete and start over (rule first)", items: [
+  { title: "Delete and start over (rules first)", items: [
     { n: "1", text: "List all rules" },
-    { n: "2", text: "Delete rule rule_01", warn: true },
-    { n: "3", text: "Remove the device named distance", warn: true },
+    { n: "2", text: "Delete rule rule_02", warn: true },
+    { n: "3", text: "Delete rule rule_01", warn: true },
+    { n: "4", text: "Remove the device named distance", warn: true },
   ]},
   { title: "Commands (instant, no AI)", items: [
     { text: "/clear", note: "wipe the chat history" },

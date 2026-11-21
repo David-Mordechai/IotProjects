@@ -24,7 +24,7 @@ static Device g_devices[MAX_DEVICES];
  *============================================================================*/
 
 bool deviceIsSensor(DeviceKind kind) {
-    return kind <= DEV_SENSOR_SERIAL_TEXT;
+    return kind <= DEV_SENSOR_HCSR04;
 }
 
 bool deviceIsActuator(DeviceKind kind) {
@@ -43,6 +43,7 @@ const char *deviceKindName(DeviceKind kind) {
         case DEV_SENSOR_CLOCK_HHMM:   return "clock_hhmm";
         case DEV_SENSOR_NATS_VALUE:    return "nats_value";
         case DEV_SENSOR_SERIAL_TEXT:   return "serial_text";
+        case DEV_SENSOR_HCSR04:        return "hcsr04";
         case DEV_ACTUATOR_DIGITAL:     return "digital_out";
         case DEV_ACTUATOR_RELAY:       return "relay";
         case DEV_ACTUATOR_PWM:         return "pwm";
@@ -62,6 +63,7 @@ static DeviceKind kindFromString(const char *s) {
     if (strcmp(s, "clock_hhmm") == 0)   return DEV_SENSOR_CLOCK_HHMM;
     if (strcmp(s, "nats_value") == 0)    return DEV_SENSOR_NATS_VALUE;
     if (strcmp(s, "serial_text") == 0)   return DEV_SENSOR_SERIAL_TEXT;
+    if (strcmp(s, "hcsr04") == 0)        return DEV_SENSOR_HCSR04;
     if (strcmp(s, "digital_out") == 0)   return DEV_ACTUATOR_DIGITAL;
     if (strcmp(s, "relay") == 0)         return DEV_ACTUATOR_RELAY;
     if (strcmp(s, "pwm") == 0)           return DEV_ACTUATOR_PWM;
@@ -91,7 +93,8 @@ Device *deviceFind(const char *name) {
 
 bool deviceRegister(const char *name, DeviceKind kind, uint8_t pin,
                     const char *unit, bool inverted,
-                    const char *nats_subject, uint32_t baud) {
+                    const char *nats_subject, uint32_t baud,
+                    uint8_t pin2) {
     /* Reject HAL reserved names */
     if (halIsReservedName(name)) return false;
 
@@ -113,6 +116,9 @@ bool deviceRegister(const char *name, DeviceKind kind, uint8_t pin,
             g_devices[i].name[DEV_NAME_LEN - 1] = '\0';
             g_devices[i].kind = kind;
             g_devices[i].pin = pin;
+            g_devices[i].pin2 = pin2;
+            g_devices[i].last_read_ms = 0;
+            g_devices[i].ema_init = false;
             if (unit) {
                 strncpy(g_devices[i].unit, unit, DEV_UNIT_LEN - 1);
                 g_devices[i].unit[DEV_UNIT_LEN - 1] = '\0';
@@ -137,6 +143,13 @@ bool deviceRegister(const char *name, DeviceKind kind, uint8_t pin,
             /* Initialize serial_text UART */
             if (kind == DEV_SENSOR_SERIAL_TEXT) {
                 serialTextInit(baud);
+            }
+
+            /* HC-SR04: Trig is an output held LOW, Echo an input */
+            if (kind == DEV_SENSOR_HCSR04 && pin != PIN_NONE && pin2 != PIN_NONE) {
+                pinMode(pin, OUTPUT);
+                digitalWrite(pin, LOW);
+                pinMode(pin2, INPUT);
             }
 
             /* Configure GPIO for actuators */
@@ -184,6 +197,32 @@ static void ntcReadWithWarmup(Device *dev) {
     float tempK = 1.0f / (1.0f / 298.15f + (1.0f / 3950.0f) * logf(resistance / 10000.0f));
     dev->ema = tempK - 273.15f;
     dev->ema_init = true;
+}
+
+/* HC-SR04 ultrasonic distance (same method as firmware/distance-hello):
+ * a 10 us HIGH pulse on Trig makes the sensor send 8 clicks at 40 kHz; Echo
+ * then stays HIGH for the sound's round trip. cm = us / 58 (343 m/s, there
+ * and back). No echo within 30 ms (~5 m, beyond the ~4 m range) -> 400, so
+ * "closer than X" rules don't fire by mistake. Blocks for up to ~30 ms.
+ * Pings are kept >= 60 ms apart (datasheet measurement cycle), otherwise a
+ * late echo from the previous ping can be measured; a faster read returns
+ * the cached value (kept in dev->ema). */
+static float hcsr04Read(Device *dev) {
+    if (dev->pin == PIN_NONE || dev->pin2 == PIN_NONE) return -1.0f;
+    uint32_t now = millis();
+    if (dev->ema_init && now - dev->last_read_ms < 60) return dev->ema;
+
+    digitalWrite(dev->pin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(dev->pin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(dev->pin, LOW);
+    unsigned long us = pulseIn(dev->pin2, HIGH, 30000);
+
+    dev->last_read_ms = millis();
+    dev->ema = us ? us / 58.0f : 400.0f;
+    dev->ema_init = true;
+    return dev->ema;
 }
 
 float deviceReadSensor(Device *dev, bool record_hist) {
@@ -254,6 +293,11 @@ float deviceReadSensor(Device *dev, bool record_hist) {
 
         case DEV_SENSOR_SERIAL_TEXT:
             result = serialTextGetValue();
+            record_history = true;
+            break;
+
+        case DEV_SENSOR_HCSR04:
+            result = hcsr04Read(dev);
             record_history = true;
             break;
 
@@ -466,6 +510,10 @@ void devicesSave() {
             w += snprintf(buf + w, sizeof(buf) - w,
                 ",\"ns\":\"%s\"", d->nats_subject);
         }
+        if (d->pin2 != PIN_NONE) {
+            w += snprintf(buf + w, sizeof(buf) - w,
+                ",\"p2\":%d", d->pin2);
+        }
         if (d->baud > 0) {
             w += snprintf(buf + w, sizeof(buf) - w,
                 ",\"bd\":%u", (unsigned)d->baud);
@@ -532,9 +580,11 @@ static void devicesLoad() {
         devJsonGetString(objBuf, "ns", nats_subj, sizeof(nats_subj));
         uint32_t baud = (uint32_t)devJsonGetInt(objBuf, "bd", 0);
 
+        int pin2 = devJsonGetInt(objBuf, "p2", PIN_NONE);
+
         DeviceKind kind = kindFromString(kind_str);
         deviceRegister(name, kind, (uint8_t)pin, unit, inverted,
-                       nats_subj[0] ? nats_subj : nullptr, baud);
+                       nats_subj[0] ? nats_subj : nullptr, baud, (uint8_t)pin2);
         count++;
 
         p = obj_end + 1;

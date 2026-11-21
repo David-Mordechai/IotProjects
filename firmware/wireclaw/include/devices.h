@@ -28,6 +28,7 @@ enum DeviceKind {
     DEV_SENSOR_CLOCK_HHMM,     /* getLocalTime() -> hour*100+minute (e.g. 1830) */
     DEV_SENSOR_NATS_VALUE,     /* value received from NATS subject */
     DEV_SENSOR_SERIAL_TEXT,    /* text received from UART serial port */
+    DEV_SENSOR_HCSR04,         /* HC-SR04 ultrasonic: pin=Trig, pin2=Echo -> cm (400 = no echo) */
     /* Actuators */
     DEV_ACTUATOR_DIGITAL,       /* digitalWrite */
     DEV_ACTUATOR_RELAY,         /* digitalWrite (inverted flag) */
@@ -39,6 +40,8 @@ struct Device {
     char        name[DEV_NAME_LEN];
     DeviceKind  kind;
     uint8_t     pin;
+    uint8_t     pin2;          /* second GPIO (HC-SR04 Echo); PIN_NONE if unused */
+    uint32_t    last_read_ms;  /* HC-SR04: time of last ping (pings >= 60 ms apart) */
     char        unit[DEV_UNIT_LEN];
     bool        inverted;
     bool        used;
@@ -80,7 +83,8 @@ void devicesReload();
 bool deviceRegister(const char *name, DeviceKind kind, uint8_t pin,
                     const char *unit, bool inverted,
                     const char *nats_subject = nullptr,
-                    uint32_t baud = 0);
+                    uint32_t baud = 0,
+                    uint8_t pin2 = PIN_NONE);
 
 /* Remove a device by name. Returns true if found and removed. */
 bool deviceRemove(const char *name);

@@ -33,6 +33,10 @@ Actuators (digital_out, relay, pwm):
 - Use actuator_set(name="fan", state=1) to turn on, state=0 to turn off. pwm: value 0-255.
 - digital_out: simple GPIO high/low. relay: same but inverted logic. pwm: PWM output.
 
+Ultrasonic distance (HC-SR04):
+- device_register(name="distance", type="hcsr04", pin=25, echo_pin=26). pin=Trig, echo_pin=Echo. Reads cm; 400 = nothing in range.
+- Then: rule_create(sensor_name="distance", condition="lt", threshold=20, ...)
+
 NATS virtual sensors:
 - Use device_register(name="x", type="nats_value", subject="topic.name") to create a sensor fed by NATS messages.
 - No pin needed. The sensor stores the last value received on that NATS subject.
@@ -91,7 +95,7 @@ Multi-device:
 - Use remote_chat(device="name", message="...") to talk to other WireClaw devices on the same NATS network.
 - Each device has its own tools and controls its own hardware.
 
-Device types: digital_in, analog_in, ntc_10k (set inverted=true if NTC wired on 3.3V side), ldr, nats_value, serial_text, clock_hour, clock_minute, clock_hhmm, digital_out, relay (inverted logic), pwm.
+Device types: digital_in, analog_in, ntc_10k (set inverted=true if NTC wired on 3.3V side), ldr, hcsr04 (pin=Trig, echo_pin=Echo), nats_value, serial_text, clock_hour, clock_minute, clock_hhmm, digital_out, relay (inverted logic), pwm.
 Rule conditions: gt (>), lt (<), eq (==), neq (!=), change, always, chained (chain-only target).
 Rule actions: gpio_write, led_set, nats_publish, actuator, telegram, serial_send.
 

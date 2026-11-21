@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
-/* HC-SR04 on the 400-hole breadboard + ESP32 beside it, for WireClaw over NATS. Built from station-build-3d.html. */
+/* HC-SR04 on the 400-hole breadboard (eyes toward you) + the WireClaw ESP32 beside it, one board. Built from station-build-3d.html. */
 :root {
   --bg: #eceff2; --panel: #fbfcfd; --ink: #161a1f; --muted: #5a6470; --line: #d5dbe2;
   --accent: #a85a14; --accent-soft: #f4e4d3; --stage-a: #dde3e9; --stage-b: #c9d1da; --danger: #b42318;
@@ -93,7 +93,7 @@ a { color: var(--accent); }
   <aside class="rail">
     <header>
       <div class="eyebrow">WireClaw · distance sensor · breadboard</div>
-      <h1>HC-SR04 on the breadboard, 4 wires to the ESP32</h1>
+      <h1>HC-SR04 on the breadboard, 4 wires to the WireClaw ESP32</h1>
     </header>
 
     <section class="card" aria-live="polite">
@@ -117,6 +117,17 @@ a { color: var(--accent); }
       <h2>All connections</h2>
       <table><thead><tr><th>Wire / part</th><th>From</th><th>To</th></tr></thead><tbody id="connA"></tbody></table>
       <p class="small">Column numbers grow left to right and <b>row a is nearest to you</b>. You need the 400-hole breadboard and <b>4 male-female</b> wires (you have 10). No male-male wires (still on order) and no soldering.</p>
+    </section>
+
+    <section>
+      <h2>How the data flows</h2>
+      <ol class="plain small">
+        <li>You type in the chat page (browser on the PC). It hands the message to the NATS server (Docker, on the PC).</li>
+        <li>NATS sends it over Wi-Fi: PC → router → board. Both the PC and the board are on the HomeLab Wi-Fi.</li>
+        <li>The board asks Ollama on the PC for an answer (same path) and runs the tools it picks, for example reading the HC-SR04 on D25/D26.</li>
+        <li>The answer, and rule messages like "Object detected", go back the same way: board → Wi-Fi → router → NATS → chat page, which shows and speaks them.</li>
+        <li>The USB-C cable carries only power and the serial port (COM5: flashing firmware, logs). On a power bank the board works exactly the same.</li>
+      </ol>
     </section>
 
     <section>
@@ -159,44 +170,44 @@ a { color: var(--accent); }
 
   const STEPS = [
     { st: null, title: "What you're building",
-      body: "Two ESP32 boards. #1 already runs WireClaw (on COM5) and gets no wires. #2, a new one, measures distance with the HC-SR04 and sends it over Wi-Fi to the NATS server on your PC, which passes it to WireClaw (the dashed lines). The sensor stands in the breadboard, so it points forward and stays put; four male-female wires connect it to the ESP32 beside it. No soldering. Keep USB unplugged while you wire." },
+      body: "One ESP32: the WireClaw board (on COM5). It reads the HC-SR04 itself (WireClaw's hcsr04 sensor type) and talks to your PC through your home Wi-Fi: board to the router, router to the PC (also on Wi-Fi), where the NATS server (chat) and Ollama (the AI) run. The moving dots show that data going both ways. The USB-C cable to the PC only powers the board and gives the serial port COM5 (flashing, logs); chat does not use it. The sensor stands in the front row of the breadboard with its eyes facing you, so nothing is in front of it and it measures toward the front of the desk; four male-female wires connect it to the ESP32 beside it. No soldering. Keep USB unplugged while you wire." },
     { st: "A", title: "How a breadboard connects",
-      holes: "Example: column 10, holes f10–j10",
-      body: "Under each numbered column, holes f, g, h, i, j sit on one metal clip, so anything in j10 and f10 is connected. a–e is a separate clip on the other side of the centre channel. That is how a wire in f10 reaches the sensor pin in j10.",
-      strips: ["A:f10"] },
-    { st: "A", title: "HC-SR04 into j8–j11", part: "hc",
-      holes: "Gnd → j8 · Echo → j9 · Trig → j10 · Vcc → j11",
-      body: "Stand it up with its two round \"eyes\" facing away from you and push the 4 pins into j8, j9, j10, j11. Seen from your side the pins are, left to right, Gnd, Echo, Trig, Vcc (the labels are printed on the eye side: peek over to check). Now column 8 is Gnd, 9 is Echo, 10 is Trig, 11 is Vcc.",
-      warn: "Eyes facing toward you would reverse the order and put Vcc where Gnd should be.",
-      strips: ["A:f8", "A:f9", "A:f10", "A:f11"] },
-    { st: "A", title: "Ground: ESP32 GND → f8",
-      wires: [{ from: "eL:GND", to: "h:f8", color: C.gnd, name: "Black (male-female)", lift: 10 }],
-      holes: "ESP32 GND (left row, next to VIN) → f8 (Gnd)",
-      body: "Ground first. Female end on the ESP32's GND pin (left row, second from the USB end), male end into f8. Column 8 is the sensor's Gnd, so they now share the 0 V reference.",
-      strips: ["A:f8"] },
-    { st: "A", title: "Power: ESP32 3V3 → f11",
-      wires: [{ from: "eR:3V3", to: "h:f11", color: C.v33, name: "Red (male-female)", lift: 16 }],
-      holes: "ESP32 3V3 (right row, USB end) → f11 (Vcc)",
+      holes: "Example: column 10, holes a10–e10",
+      body: "Under each numbered column, holes a, b, c, d, e sit on one metal clip, so anything in a10 and e10 is connected. f–j is a separate clip on the other side of the centre channel. That is how a wire in e10 reaches the sensor pin in a10.",
+      strips: ["A:a10"] },
+    { st: "A", title: "HC-SR04 into a8–a11, eyes toward you", part: "hc",
+      holes: "Vcc → a8 · Trig → a9 · Echo → a10 · Gnd → a11",
+      body: "Stand it up in the front row with its two round \"eyes\" facing you and push the 4 pins into a8, a9, a10, a11. The pin labels are printed on the eye side, so you can read them: left to right Vcc, Trig, Echo, Gnd. Now column 8 is Vcc, 9 is Trig, 10 is Echo, 11 is Gnd. The eyes stick out over the front power rails, and the wires go into e8–e11 behind the sensor, so nothing is in its way.",
+      warn: "Moving it from the old build (row j, wires in row f)? Move the sensor AND all 4 wires to the new holes in the table below. Check the eyes face you: turned around, the pins swap and 3.3 V lands on Gnd.",
+      strips: ["A:a8", "A:a9", "A:a10", "A:a11"] },
+    { st: "A", title: "Ground: ESP32 GND → e11",
+      wires: [{ from: "eL:GND", to: "h:e11", color: C.gnd, name: "Black (male-female)", lift: 9 }],
+      holes: "ESP32 GND (left row, next to VIN) → e11 (Gnd)",
+      body: "Ground first. Female end on the ESP32's GND pin (left row, second from the USB end), male end into e11. Column 11 is the sensor's Gnd, so they now share the 0 V reference.",
+      strips: ["A:a11"] },
+    { st: "A", title: "Power: ESP32 3V3 → e8",
+      wires: [{ from: "eR:3V3", to: "h:e8", color: C.v33, name: "Red (male-female)", lift: 18 }],
+      holes: "ESP32 3V3 (right row, USB end) → e8 (Vcc)",
       body: "3V3 is the last pin of the ESP32's far row, next to the USB port; the wire runs under the board. On 3.3 V the sensor's Echo signal is also 3.3 V, safe for the ESP32.",
       warn: "Use 3V3, not VIN. On VIN (5 V) the sensor would send 5 V back into the ESP32's D26.",
-      strips: ["A:f11"] },
-    { st: "A", title: "Trigger: D25 → f10",
-      wires: [{ from: "eL:D25", to: "h:f10", color: C.trig, name: "Yellow (male-female)", lift: 18 }],
-      holes: "ESP32 D25 → f10 (Trig)",
+      strips: ["A:a8"] },
+    { st: "A", title: "Trigger: D25 → e9",
+      wires: [{ from: "eL:D25", to: "h:e9", color: C.trig, name: "Yellow (male-female)", lift: 15 }],
+      holes: "ESP32 D25 → e9 (Trig)",
       body: "D25 sends the 10 µs pulse that makes the sensor ping.",
-      strips: ["A:f10"] },
-    { st: "A", title: "Echo: D26 → f9",
-      wires: [{ from: "eL:D26", to: "h:f9", color: C.echo, name: "Green (male-female)", lift: 14 }],
-      holes: "ESP32 D26 → f9 (Echo)",
+      strips: ["A:a9"] },
+    { st: "A", title: "Echo: D26 → e10",
+      wires: [{ from: "eL:D26", to: "h:e10", color: C.echo, name: "Green (male-female)", lift: 12 }],
+      holes: "ESP32 D26 → e10 (Echo)",
       body: "The sensor holds Echo HIGH for as long as the sound takes to come back. Distance in cm = time in µs ÷ 58. D26 is right next to D25.",
-      strips: ["A:f9"] },
+      strips: ["A:a10"] },
     { st: "A", title: "Check, then plug in USB",
-      holes: "4 wires · sensor in j8–j11",
-      body: "Compare every wire with the table below, then plug board #2 into the PC with USB-C (board #1, WireClaw, stays plugged in too). Tell Claude when it is in: it uploads distance-hello (nats env), and the blue D2 LED then blinks on every good reading.",
-      strips: ["A:f8", "A:f9", "A:f10", "A:f11"], all: "A" },
+      holes: "4 wires · sensor in a8–a11",
+      body: "Compare every wire with the table below, then plug the board into the PC with USB-C. No new firmware: WireClaw already knows the HC-SR04 (the hcsr04 type, added 2026-11-21), and it keeps its devices and rules on the board, so a sensor registered before still works.",
+      strips: ["A:a8", "A:a9", "A:a10", "A:a11"], all: "A" },
     { st: "A", title: "Use it with WireClaw",
-      holes: "NATS subject: sensors.distance",
-      body: "In the chat page (http://localhost:8090/) type: Register a nats_value sensor called distance with subject sensors.distance, unit cm. Ask: What is the distance? Or make a rule: When distance is below 20 cm, turn on GPIO 2, and when it is above 20, turn it off. Then move your hand toward the sensor: the blue LED on board #1 (WireClaw) lights up.",
+      holes: "chat page: http://localhost:8090/",
+      body: "Make sure Docker Desktop and Ollama are running, open the chat page and click the examples in its help panel, in order: /clear; register the sensor (\"I connected an HC-SR04 … Trig on pin 25, Echo on pin 26. Register it as distance.\"); the field-style rule \"object\". Ask \"How far is the nearest object?\". Put your hand in front of the eyes, closer than 20 cm: the page shows and says \"Object detected\", and \"Object removed\" when you take it away. The \"close_led\" example adds a second rule that also lights the blue D2 LED on the board while your hand is close.",
       strips: [], all: "W" }
   ];
 
@@ -215,7 +226,7 @@ a { color: var(--accent); }
     if (t === "c") return `CC1101 pin ${v} (${CC_NAMES[v]})`;
     return "LED board " + v;
   }
-  const rowsA = [["#1d5fbf", "HC-SR04 (eyes away)", "Gnd j8 · Echo j9", "Trig j10 · Vcc j11"]];
+  const rowsA = [["#1d5fbf", "HC-SR04 (front row, eyes toward you)", "Vcc a8 · Trig a9", "Echo a10 · Gnd a11"]];
   const rowsB = [];
   STEPS.forEach(s => (s.wires || []).forEach(w => (s.st === "A" ? rowsA : rowsB).push([w.color, w.name, endName(w.from), endName(w.to)])));
   const tr = r => `<tr><td><span class="sw" style="background:${r[0]}"></span>${r[1]}</td><td class="mono">${r[2]}</td><td class="mono">${r[3]}</td></tr>`;
@@ -382,13 +393,16 @@ a { color: var(--accent); }
       add(new THREE.CylinderGeometry(4.2, 4.2, 46, 16), M.black, x + 15, 32, z);
     }
 
-    // ----- sensors standing in row j, facing away (−z) -----
+    // ----- HC-SR04 standing in row a (front), eyes facing you (+z, over the front rails); wires go in row e behind it -----
     function hcsr04(s) {
-      const cx = (colX(s, 8) + colX(s, 11)) / 2, z = s.oz + ROWZ.j, y0 = BB_TOP + 2.5;
+      const cx = (colX(s, 8) + colX(s, 11)) / 2, z = s.oz + ROWZ.a, y0 = BB_TOP + 2.5;
       box(10.16, 2.5, 2.5, M.black, cx, BB_TOP + 1.25, z);
       [8, 9, 10, 11].forEach(c => box(0.64, 3, 0.64, M.gold, colX(s, c), BB_TOP + 1, z));
       box(45, 20, 1.6, M.blue, cx, y0 + 10, z);
-      [-13, 13].forEach(dx => { const m = add(new THREE.CylinderGeometry(8, 8, 12, 32), M.metal, cx + dx, y0 + 10, z - 6.8); m.rotation.x = Math.PI / 2; });
+      [-13, 13].forEach(dx => {
+        const m = add(new THREE.CylinderGeometry(8, 8, 12, 32), M.metal, cx + dx, y0 + 10, z + 6.8); m.rotation.x = Math.PI / 2;
+        add(new THREE.CircleGeometry(6.8, 32), M.black, cx + dx, y0 + 10, z + 12.85, false);   // dark mesh on the eye's face
+      });
     }
     function rcwl(s) {
       const cx = colX(s, 24), z = s.oz + ROWZ.j, y0 = BB_TOP + 2.5;
@@ -433,27 +447,57 @@ a { color: var(--accent); }
     BUILD = 0;
     breadboard("A", ST.A); esp32(ST.A);
 
-    // ----- the other two pieces: WireClaw board (no wires) and the PC, linked by Wi-Fi -----
-    const WC = { ox: 110, oz: 0 };                       // WireClaw ESP32 sits at x = 210
-    esp32(WC);
-    const PC = V(155, 0, -95);
+    // ----- the PC, linked to the WireClaw board by Wi-Fi -----
+    const PC = V(115, 0, -100);
     box(70, 3, 46, std(0x8a9099, { metalness: 0.4, roughness: 0.4 }), PC.x, 1.5, PC.z);                  // laptop base
     const scr = box(70, 44, 2.5, std(0x2b2f35), PC.x, 25, PC.z - 24); scr.rotation.x = -0.18;            // screen
     const scrFace = new THREE.Mesh(new THREE.PlaneGeometry(64, 38), new THREE.MeshBasicMaterial({ map: tex(640, 380, (g, w, h) => {
       g.fillStyle = "#101820"; g.fillRect(0, 0, w, h);
       g.fillStyle = "#e6edf3"; g.textAlign = "center"; g.font = '700 46px "IBM Plex Sans", sans-serif'; g.fillText("Your PC", w / 2, 90);
-      g.font = '600 32px "JetBrains Mono", monospace'; g.fillStyle = "#2ee6a6";
+      g.font = '600 32px "JetBrains Mono", monospace'; g.fillStyle = "#9db8e8";
       g.fillText("NATS server (Docker)", w / 2, 175); g.fillText("Ollama (the AI)", w / 2, 235); g.fillText("chat page :8090", w / 2, 295);
     }) }));
     scrFace.position.set(PC.x, 25.3, PC.z - 22.6); scrFace.rotation.x = -0.18; scene.add(scrFace); items.push({ mesh: scrFace, step: 0 });
-    // dashed "Wi-Fi" links: sensor board -> PC -> WireClaw board
-    const wifiMat = new THREE.LineDashedMaterial({ color: 0x2ee6a6, dashSize: 4, gapSize: 3 });
-    [[V(espX(ST.A), ESP_B + 4, espZ(ST.A) - 24), V(PC.x - 20, 40, PC.z - 10)],
-     [V(PC.x + 20, 40, PC.z - 10), V(espX(WC), ESP_B + 4, espZ(WC) - 24)]].forEach(([a, b]) => {
-      const mid = a.clone().lerp(b, 0.5); mid.y += 18;
-      const geo = new THREE.BufferGeometry().setFromPoints(new THREE.QuadraticBezierCurve3(a, mid, b).getPoints(40));
-      const line = new THREE.Line(geo, wifiMat); line.computeLineDistances(); scene.add(line); items.push({ mesh: line, step: 0 });
+    // ----- Wi-Fi router (HomeLab) -----
+    const RT = V(-40, 0, -72);                                         // left, behind the breadboard
+    const rtMat = std(0xe9ecef, { roughness: 0.5 });
+    box(44, 7, 26, rtMat, RT.x, 3.5, RT.z);
+    [-15, 15].forEach(dx => { const a = add(new THREE.CylinderGeometry(1.3, 1.6, 24, 12), M.black, RT.x + dx, 18, RT.z - 10); a.rotation.z = dx * 0.006; });
+    [-12, -6, 0].forEach(dx => box(2.4, 0.4, 1.2, std(0x2ee6a6, { emissive: 0x2ee6a6, emissiveIntensity: 0.8 }), RT.x + dx, 7.1, RT.z + 12.6));   // status LEDs
+
+    // Data path: board --Wi-Fi--> router --Wi-Fi--> PC (NATS + Ollama), and the same way back.
+    // A thin translucent line with small "packets" travelling both ways. Still when reduced motion is on.
+    const netA = V(espX(ST.A), ESP_B + 3, espZ(ST.A) - 22);          // board, antenna end
+    const netR = V(RT.x + 10, 8, RT.z + 4);                                // router
+    const netP = V(PC.x - 35, 3.5, PC.z + 6);                         // laptop, left side
+    const arc = (p, q, h) => { const m = p.clone().lerp(q, 0.5); m.y += h; return new THREE.QuadraticBezierCurve3(p, m, q); };
+    const wifiCurve = arc(netA, netR, 34), lanCurve = arc(netR, netP, 26);
+    const netPath = new THREE.CurvePath(); netPath.add(wifiCurve); netPath.add(lanCurve);
+    const linkMat = new THREE.MeshBasicMaterial({ color: 0x9db8e8, transparent: true, opacity: 0.5, depthWrite: false });
+    [wifiCurve, lanCurve].forEach(c => { const l = new THREE.Mesh(new THREE.TubeGeometry(c, 80, 0.4, 8, false), linkMat); scene.add(l); items.push({ mesh: l, step: 0 }); });
+    const nodeMat = new THREE.MeshBasicMaterial({ color: 0xc9d8f2 });
+    [netA, netR, netP].forEach(p => { const n = new THREE.Mesh(new THREE.SphereGeometry(1.3, 16, 12), nodeMat); n.position.copy(p); scene.add(n); items.push({ mesh: n, step: 0 }); });
+    const pktMat = new THREE.MeshBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0.9 });
+    const packets = [0, 0.5, 0.25, 0.75].map((off, i) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 8), pktMat); scene.add(m); items.push({ mesh: m, step: 0 });
+      return { m, off, back: i >= 2 };          // two go board -> PC, two come back
     });
+    const placePackets = now => packets.forEach(p => {
+      let t = (now / 4200 + p.off) % 1; if (p.back) t = 1 - t;
+      p.m.position.copy(netPath.getPoint(t));
+    });
+    placePackets(0);
+
+    // ----- USB-C cable: board -> laptop. Power + serial (COM5) only; chat does not use it -----
+    BUILD = STEPS.findIndex(st => st.title.startsWith("Check, then plug in USB"));   // plugged in at that step
+    const usbEnd = espZ(ST.A) + 26.75;                                // ESP32 USB-C port edge
+    box(8.4, 2.6, 6, M.housing, espX(ST.A), ESP_B + 1.6, usbEnd + 2.5);                       // plug at the board
+    box(6, 2.6, 8.4, M.housing, PC.x + 38, 1.6, PC.z + 2);                                    // plug at the laptop
+    const usbCurve = new THREE.CatmullRomCurve3([
+      V(espX(ST.A), ESP_B + 1.6, usbEnd + 5.5), V(espX(ST.A), 4, usbEnd + 16), V(espX(ST.A) + 30, 1.4, usbEnd + 22),
+      V(PC.x + 55, 1.4, usbEnd - 10), V(PC.x + 58, 1.4, PC.z + 40), V(PC.x + 41, 1.6, PC.z + 2)], false, "centripetal");
+    add(new THREE.TubeGeometry(usbCurve, 160, 1.1, 10, false), std(0x2a2d33, { roughness: 0.5 }), 0, 0, 0);
+    BUILD = 0;
     STEPS.forEach((st, k) => {
       if (!st.part) return;
       BUILD = k;
@@ -508,19 +552,20 @@ a { color: var(--accent); }
     const baseTags = [];
     ["A"].forEach(key => {
       const s = ST[key];
-      baseTags.push({ text: s.name, zone: true, pos: V(s.ox + 40, 0, s.oz - 75) },
-                    { text: "ESP32 #2: sensor board (the new one)", part: true, pos: V(espX(s), ESP_B + 9, espZ(s) - 14) },
-                    { text: "ESP32 #1: WireClaw (on COM5, no wires)", part: true, pos: V(espX(WC), ESP_B + 9, espZ(WC) - 14) },
-                    { text: "Wi-Fi: distance → NATS", pos: V(espX(s) - 6, 34, (espZ(s) + PC.z) / 2) },
-                    { text: "Wi-Fi: NATS → WireClaw", pos: V(espX(WC) + 6, 34, (espZ(WC) + PC.z) / 2) },
+      baseTags.push({ text: "ESP32: WireClaw (COM5)", part: true, pos: V(espX(s), ESP_B + 9, espZ(s) - 14) },
+                    { text: "Wi-Fi (board ↔ router)", pos: wifiCurve.getPoint(0.22).add(V(0, 2, 0)) },
+                    { text: "Wi-Fi router (HomeLab)", part: true, pos: V(RT.x, 32, RT.z - 10) },
+                    { text: "Wi-Fi (router ↔ PC)", pos: lanCurve.getPoint(0.62).add(V(0, 3, 0)) },
                     { text: "Breadboard", part: true, pos: V(s.ox - 30, BB_TOP + 3, s.oz + 30) });
     });
     const partTags = [
-      { step: STEPS.findIndex(s => s.part === "hc"), text: "HC-SR04 (eyes away)", pos: V((colX(ST.A, 8) + colX(ST.A, 11)) / 2, BB_TOP + 26, ST.A.oz + ROWZ.j) }
+      { step: STEPS.findIndex(st => st.title.startsWith("Check, then plug in USB")), text: "USB-C: power + COM5 (flashing, logs), no chat", pos: usbCurve.getPoint(0.55).add(V(0, 3, 0)) },
+      { step: STEPS.findIndex(s => s.part === "hc"), text: "HC-SR04 (eyes toward you)", pos: V((colX(ST.A, 8) + colX(ST.A, 11)) / 2 - 16, BB_TOP + 26, ST.A.oz + ROWZ.a) }
     ];
     // Hole labels for the parts' own pins, shown at the step they are placed
     const pinTags = {
-      hc: [["Gnd j8", 8], ["Echo j9", 9], ["Trig j10", 10], ["Vcc j11", 11]].map(([t, c], i) => ({ text: t, pos: V(colX(ST.A, c), BB_TOP + 1 + (i % 2) * 7, ST.A.oz + ROWZ.e) }))
+      // One label on the breadboard's front edge, under the eyes: the pins hide behind the sensor from the front
+      hc: [{ text: "a8 Vcc · a9 Trig · a10 Echo · a11 Gnd", pos: V((colX(ST.A, 8) + colX(ST.A, 11)) / 2, BB_TOP - 1, ST.A.oz + 27.5) }]
     };
     let activeTags = [];
     function setTags(list) {
@@ -541,13 +586,13 @@ a { color: var(--accent); }
       if (reduceMotion) { camera.position.copy(pos); controls.target.copy(target); return; }
       tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, t: performance.now() };
     }
-    const OVER_T = V(95, 0, -25), OVER_P = V(95, 270, 300);
+    const OVER_T = V(45, 0, -30), OVER_P = V(45, 250, 285);
     camera.position.copy(OVER_P); controls.target.copy(OVER_T);
     function focusOn(points, fallback) {
       if (!points.length) points = fallback;
       const bb = new THREE.Box3().setFromPoints(points);
       const c = bb.getCenter(V(0, 0, 0)); c.y = 5;
-      const size = bb.getSize(V(0, 0, 0)), d = Math.max(85, Math.max(size.x, size.z) * 1.25);
+      const size = bb.getSize(V(0, 0, 0)), d = Math.max(85, Math.max(size.x, size.z) * 1.45);
       flyTo(c.clone().add(V(0, d * 0.95, d * 1.05)), c);
     }
 
@@ -560,14 +605,14 @@ a { color: var(--accent); }
       partTags.forEach(t => { if (k === 0 || t.step <= k) tags.push(Object.assign({ part: true }, t)); });
       if (st.part) tags.push(...pinTags[st.part]);
       tags.push(...wireTags.filter(t => t.step === k));
-      if (k === 1) tags.push({ text: "f10–j10 joined", pos: V(colX(ST.A, 10), BB_TOP + 2, ST.A.oz + ROWZ.f + 4) });
+      if (k === 1) tags.push({ text: "a10–e10 joined", pos: V(colX(ST.A, 10), BB_TOP + 2, ST.A.oz + ROWZ.e - 4) });
       setTags(tags);
       if (k === 0) { flyTo(OVER_P, OVER_T); return; }
       const s = ST[st.st];
       if (st.all === "W") { flyTo(OVER_P, OVER_T); return; }
       if (st.all) { focusOn([V(s.ox - 45, 0, s.oz - 40), V(s.ox + 120, 0, s.oz + 40)]); return; }
       const pts = stepPoints[k].slice();
-      if (st.part) pts.push(V(colX(s, 4), 0, s.oz - 25), V(colX(s, 28), 0, s.oz + 25));
+      if (st.part) pts.push(V(colX(s, -2), 0, s.oz - 25), V(colX(s, 21), 0, s.oz + 25));   // centred on the sensor (columns 8–11)
       focusOn(pts, [V(s.ox - 40, 0, s.oz - 28), V(s.ox + 40, 0, s.oz + 28)]);
     }
 
@@ -583,6 +628,7 @@ a { color: var(--accent); }
         camera.position.lerpVectors(tween.p0, tween.p1, e); controls.target.lerpVectors(tween.t0, tween.t1, e);
         if (q === 1) tween = null;
       }
+      if (!reduceMotion) placePackets(now);
       controls.update(); renderer.render(scene, camera);
       const w = stage.clientWidth, h = stage.clientHeight;
       activeTags.forEach(t => {

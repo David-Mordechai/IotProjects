@@ -48,6 +48,7 @@ char cfg_telegram_token[64];
 char cfg_telegram_chat_id[16];
 char cfg_system_prompt[SYSTEM_PROMPT_MAX];
 char cfg_timezone[64];
+char cfg_llm_reasoning[16];   /* "reasoning_effort" for the LLM; empty = not sent */
 int cfg_telegram_cooldown = 3;  /* seconds, 0 = disabled */
 
 /* Placeholder defaults - overridden by LittleFS config.json */
@@ -181,6 +182,7 @@ static bool loadConfig() {
             cfg_telegram_cooldown = atoi(cd_buf);
         }
         jsonGetString(json_buf, "timezone", cfg_timezone, sizeof(cfg_timezone));
+        jsonGetString(json_buf, "llm_reasoning", cfg_llm_reasoning, sizeof(cfg_llm_reasoning));
     } else {
         Serial.printf("LittleFS: no config.json, using defaults\n");
     }
@@ -1681,7 +1683,9 @@ void setup() {
     Serial.printf("NTP: syncing (TZ=%s)...\n", cfg_timezone);
 
     /* Init LLM client */
-    llm.begin(cfg_api_key, cfg_model, cfg_api_base_url);
+    llm.begin(cfg_api_key, cfg_model, cfg_api_base_url, cfg_llm_reasoning);
+    if (cfg_llm_reasoning[0])
+        Serial.printf("LLM reasoning_effort: %s\n", cfg_llm_reasoning);
 
     /* Watchdog - reconfigure to 60s (Arduino already inits WDT at 5s) */
     esp_task_wdt_config_t wdt_cfg = { .timeout_ms = 60000, .idle_core_mask = 0,

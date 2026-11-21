@@ -99,7 +99,7 @@ static const char *TOOLS_JSON = R"JSON([
 {"type":"function","function":{"name":"file_write","description":"Write file to filesystem","parameters":{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}}},
 {"type":"function","function":{"name":"nats_publish","description":"Publish NATS message","parameters":{"type":"object","properties":{"subject":{"type":"string"},"payload":{"type":"string"}},"required":["subject","payload"]}}},
 {"type":"function","function":{"name":"temperature_read","description":"Read chip temperature (C)","parameters":{"type":"object","properties":{}}}},
-{"type":"function","function":{"name":"device_register","description":"Register sensor/actuator","parameters":{"type":"object","properties":{"name":{"type":"string"},"type":{"type":"string","enum":["digital_in","analog_in","ntc_10k","ldr","nats_value","serial_text","digital_out","relay","pwm"],"description":"digital_in: GPIO digital read, analog_in: raw ADC reading, ntc_10k: NTC 10K thermistor (temp in C, set inverted=true if NTC is on the 3.3V side), ldr: light-dependent resistor (light level), nats_value: virtual sensor from NATS subject, serial_text: UART text input, digital_out: GPIO digital write, relay: relay on/off, pwm: PWM output"},"pin":{"type":"integer"},"unit":{"type":"string"},"inverted":{"type":"boolean"},"subject":{"type":"string","description":"NATS subject (for nats_value)"},"baud":{"type":"integer","description":"Baud rate for serial_text (default 9600)"}},"required":["name","type"]}}},
+{"type":"function","function":{"name":"device_register","description":"Register sensor/actuator","parameters":{"type":"object","properties":{"name":{"type":"string"},"type":{"type":"string","enum":["digital_in","analog_in","ntc_10k","ldr","hcsr04","nats_value","serial_text","digital_out","relay","pwm"],"description":"digital_in: GPIO digital read, analog_in: raw ADC reading, ntc_10k: NTC 10K thermistor (temp in C, set inverted=true if NTC is on the 3.3V side), ldr: light-dependent resistor (light level), hcsr04: ultrasonic distance in cm (pin=Trig, echo_pin=Echo), nats_value: virtual sensor from NATS subject, serial_text: UART text input, digital_out: GPIO digital write, relay: relay on/off, pwm: PWM output"},"pin":{"type":"integer"},"echo_pin":{"type":"integer","description":"Echo pin (hcsr04 only)"},"unit":{"type":"string"},"inverted":{"type":"boolean"},"subject":{"type":"string","description":"NATS subject (for nats_value)"},"baud":{"type":"integer","description":"Baud rate for serial_text (default 9600)"}},"required":["name","type"]}}},
 {"type":"function","function":{"name":"device_list","description":"List registered devices","parameters":{"type":"object","properties":{}}}},
 {"type":"function","function":{"name":"device_remove","description":"Remove device by name","parameters":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}},
 {"type":"function","function":{"name":"sensor_read","description":"Read named sensor value","parameters":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}},
@@ -292,6 +292,7 @@ static void tool_device_register(const char *args, char *result, int result_len)
     }
 
     int pin = jsonArgInt(args, "pin", PIN_NONE);
+    int echo_pin = jsonArgInt(args, "echo_pin", PIN_NONE);
 
     char unit[DEV_UNIT_LEN] = "";
     jsonArgString(args, "unit", unit, sizeof(unit));
@@ -306,6 +307,7 @@ static void tool_device_register(const char *args, char *result, int result_len)
     else if (strcmp(type_str, "analog_in") == 0)     kind = DEV_SENSOR_ANALOG_RAW;
     else if (strcmp(type_str, "ntc_10k") == 0)       kind = DEV_SENSOR_NTC_10K;
     else if (strcmp(type_str, "ldr") == 0)            kind = DEV_SENSOR_LDR;
+    else if (strcmp(type_str, "hcsr04") == 0)         kind = DEV_SENSOR_HCSR04;
     else if (strcmp(type_str, "nats_value") == 0)     kind = DEV_SENSOR_NATS_VALUE;
     else if (strcmp(type_str, "serial_text") == 0)   kind = DEV_SENSOR_SERIAL_TEXT;
     else if (strcmp(type_str, "digital_out") == 0)   kind = DEV_ACTUATOR_DIGITAL;
@@ -337,6 +339,16 @@ static void tool_device_register(const char *args, char *result, int result_len)
             }
         }
         pin = PIN_NONE;
+    } else if (kind == DEV_SENSOR_HCSR04) {
+        if (pin == PIN_NONE || echo_pin == PIN_NONE || pin == echo_pin) {
+            snprintf(result, result_len, "Error: hcsr04 requires 'pin' (Trig) and a different 'echo_pin' (Echo)");
+            return;
+        }
+        if (pin >= 34 && pin <= 39) {
+            snprintf(result, result_len, "Error: GPIO %d is input-only, it can't drive Trig", pin);
+            return;
+        }
+        if (!unit[0]) strcpy(unit, "cm");
     } else if (pin == PIN_NONE && deviceIsActuator(kind)) {
         snprintf(result, result_len, "Error: actuator requires 'pin'");
         return;
@@ -351,7 +363,8 @@ static void tool_device_register(const char *args, char *result, int result_len)
 
     if (!deviceRegister(name, kind, (uint8_t)pin, unit, inverted,
                         subject[0] ? subject : nullptr,
-                        kind == DEV_SENSOR_SERIAL_TEXT ? (uint32_t)baud_rate : 0)) {
+                        kind == DEV_SENSOR_SERIAL_TEXT ? (uint32_t)baud_rate : 0,
+                        kind == DEV_SENSOR_HCSR04 ? (uint8_t)echo_pin : PIN_NONE)) {
         snprintf(result, result_len, "Error: register failed (duplicate name or full)");
         return;
     }
@@ -365,6 +378,9 @@ static void tool_device_register(const char *args, char *result, int result_len)
     } else if (kind == DEV_SENSOR_SERIAL_TEXT) {
         snprintf(result, result_len, "Registered serial_text sensor '%s' at %d baud (RX=%d TX=%d)",
                  name, baud_rate, SERIAL_TEXT_RX, SERIAL_TEXT_TX);
+    } else if (kind == DEV_SENSOR_HCSR04) {
+        snprintf(result, result_len, "Registered hcsr04 sensor '%s' (Trig pin %d, Echo pin %d), reads now %.1f cm",
+                 name, pin, echo_pin, deviceReadSensor(deviceFind(name)));
     } else {
         snprintf(result, result_len, "Registered %s '%s' on pin %d",
                  deviceIsSensor(kind) ? "sensor" : "output", name, pin);
@@ -395,6 +411,10 @@ static void tool_device_list(const char *args, char *result, int result_len) {
             float val = deviceReadSensor(d);
             w += snprintf(result + w, result_len - w, "%s(nats_value %s)=%.1f%s",
                          d->name, d->nats_subject, val, d->unit);
+        } else if (d->kind == DEV_SENSOR_HCSR04) {
+            float val = deviceReadSensor(d);
+            w += snprintf(result + w, result_len - w, "%s(hcsr04 trig%d echo%d)=%.1f%s",
+                         d->name, d->pin, d->pin2, val, d->unit);
         } else if (deviceIsSensor(d->kind)) {
             float val = deviceReadSensor(d);
             w += snprintf(result + w, result_len - w, "%s(%s pin%d)=%.1f%s",
@@ -559,6 +579,36 @@ static void tool_rule_create(const char *args, char *result, int result_len) {
         }
     }
 
+    /* Refuse the exact opposite of an existing rule (same sensor, same
+     * threshold, lt<->gt or eq<->neq). The two flip at the same instant, so
+     * rule A's ON and rule B's OFF fire together ("detected" + "removed" at
+     * once, seen 2026-11-21 with qwen3.5:4b). The off_action of ONE rule
+     * already runs when its condition stops being true. A different
+     * threshold (e.g. lt 20 / gt 25) is a deliberate gap and stays allowed. */
+    if (sensor_name[0] &&
+        (condition == COND_LT || condition == COND_GT ||
+         condition == COND_EQ || condition == COND_NEQ)) {
+        ConditionOp opposite =
+            condition == COND_LT ? COND_GT : condition == COND_GT ? COND_LT :
+            condition == COND_EQ ? COND_NEQ : COND_EQ;
+        const Rule *rules = ruleGetAll();
+        for (int i = 0; i < MAX_RULES; i++) {
+            const Rule *r = &rules[i];
+            if (!r->used || r->condition != opposite || r->threshold != threshold ||
+                strcmp(r->sensor_name, sensor_name) != 0) continue;
+            snprintf(result, result_len,
+                "Error: %s '%s' already watches %s %s %d, the exact opposite. "
+                "Do not create opposite rules: one rule's off_action already runs when "
+                "its condition stops being true. Delete %s and create ONE rule with "
+                "on_action and off_action.",
+                r->id, r->name, sensor_name,
+                opposite == COND_LT ? "lt" : opposite == COND_GT ? "gt" :
+                opposite == COND_EQ ? "eq" : "neq",
+                (int)threshold, r->id);
+            return;
+        }
+    }
+
     int interval_s = jsonArgInt(args, "interval_seconds", 5);
     if (interval_s < 1) interval_s = 1;   /* was 5; 1 s is cheap for nats_value / digital rules */
     uint32_t interval_ms = (uint32_t)interval_s * 1000;
@@ -607,8 +657,22 @@ static void tool_rule_create(const char *args, char *result, int result_len) {
         /* Explicit on_action */
         char act_str[24] = "";
         jsonArgString(args, "on_action", act_str, sizeof(act_str));
-        if (act_str[0]) {
-            on_action = parseActionType(act_str);
+        /* Upstream silently fell back to gpio_write on pin 0 (the BOOT pin)
+         * for a missing or unknown on_action: a model that only gave
+         * off_action got a rule driving GPIO 0 HIGH (seen 2026-11-21). */
+        if (!act_str[0]) {
+            snprintf(result, result_len,
+                "Error: missing 'on_action' (gpio_write|led_set|nats_publish|actuator|telegram|serial_send)");
+            return;
+        }
+        on_action = parseActionType(act_str);
+        if (on_action == ACT_GPIO_WRITE && strcmp(act_str, "gpio_write") != 0) {
+            snprintf(result, result_len, "Error: unknown on_action '%s'", act_str);
+            return;
+        }
+        if (on_action == ACT_GPIO_WRITE && !jsonArgExists(args, "on_pin")) {
+            snprintf(result, result_len, "Error: on_action gpio_write requires 'on_pin'");
+            return;
         }
 
         on_pin = (uint8_t)jsonArgInt(args, "on_pin", 0);
@@ -663,6 +727,14 @@ static void tool_rule_create(const char *args, char *result, int result_len) {
         } else {
             has_off = true;
             off_action = parseActionType(off_act_str);
+            if (off_action == ACT_GPIO_WRITE && strcmp(off_act_str, "gpio_write") != 0) {
+                snprintf(result, result_len, "Error: unknown off_action '%s'", off_act_str);
+                return;
+            }
+            if (off_action == ACT_GPIO_WRITE && !jsonArgExists(args, "off_pin")) {
+                snprintf(result, result_len, "Error: off_action gpio_write requires 'off_pin'");
+                return;
+            }
             off_pin = (uint8_t)jsonArgInt(args, "off_pin", 0);
             off_value = jsonArgInt(args, "off_value", 0);
             jsonArgString(args, "off_nats_subject", off_nats_subj, sizeof(off_nats_subj));

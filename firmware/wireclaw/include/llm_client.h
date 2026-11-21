@@ -68,7 +68,10 @@ class LlmClient {
 public:
     LlmClient();
 
-    void begin(const char *api_key, const char *model, const char *base_url = nullptr);
+    /* reasoning_effort: sent as "reasoning_effort" when non-empty (e.g. "none"
+     * turns thinking off for qwen3.5 on Ollama's /v1 endpoint). */
+    void begin(const char *api_key, const char *model, const char *base_url = nullptr,
+               const char *reasoning_effort = nullptr);
 
     /**
      * Send a chat completion request, optionally with tools.
@@ -90,6 +93,7 @@ private:
     Client          *m_client;          /* points to active one */
     const char *m_api_key;
     const char *m_model;
+    const char *m_reasoning = nullptr;
     char m_host[64];
     int  m_port;
     char m_path[64];
