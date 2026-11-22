@@ -1,12 +1,12 @@
 # Electronics Inventory
 
-_Last updated: 2026-11-15_
+_Last updated: 2026-11-23_
 
 ## Microcontrollers
 
 | # | Item | Qty | Details | Notes |
 |---|------|-----|---------|-------|
-| 1 | ESP32 Dev Board **HW-394** (ESP-32D module, NodeMCU-style) | 4 | USB-C, 30-pin, Wi-Fi + Bluetooth (Classic + BLE), dual-core 240 MHz, 4 MB flash (N4), **CH340C** USB chip (confirmed), AMS1117 3.3 V regulator | No breakout board included. Has `EN` (reset) and `BOOT` buttons. Has a `PWR` LED and a blue LED on D2. |
+| 1 | ESP32 Dev Board **HW-394** (ESP-32D module, NodeMCU-style) | 4 | USB-C, 30-pin, Wi-Fi + Bluetooth (Classic + BLE), dual-core 240 MHz, 4 MB flash (N4), **CH340C** USB chip (confirmed), AMS1117 3.3 V regulator | No breakout board included. Has `EN` (reset) and `BOOT` buttons. Has a `PWR` LED and a blue LED on D2. **1 of the 4 is in permanent use** since 2026-11-23 as the AC controller (SmartAC repo, MAC `70:4b:ca:03:fd:cc`, runs on a phone charger): not available for experiments, so **3 are free**. The WireClaw board is `8c:94:df:72:61:94`. |
 
 ### Quick reference: ESP32 Dev Board (30-pin, USB-C)
 - **Logic level:** 3.3 V. **Do not feed 5 V into GPIO pins.**
@@ -160,6 +160,16 @@ Checked in the Amazon order history on 2026-11-15. Two orders:
 Order 1: ILS 262.57. Order 2: ILS 324.93, of which ILS 63.81 import charges + ILS 9.08 exchange fee: goods $79.35 > $75 VAT-free limit).
 
 Move these into the tables above when they arrive. Build guide: `guides/station-build-3d.html`.
+
+### On order (Amazon, ordered 2026-11-21, arriving Dec 6)
+
+Order 111-4122265-6045851, ILS 224.70 (listing: $64.99, no import charges). Product page: https://www.amazon.com/dp/B0G4PW2518 (model "3-Pack IPEX All-Terminals Bundle").
+
+| Item | Qty | Details | Notes |
+|---|---|---|---|
+| **Lonely Binary ESP32-S3 N16R8 Gold Edition** dev board | 3 | ESP32-S3, dual-core Xtensa LX7 240 MHz, **16 MB flash, 8 MB PSRAM**, Wi-Fi 2.4 GHz b/g/n + **Bluetooth 5.0 LE only** (no Classic BT), **IPEX connector for an external antenna** (3 antennas included), **two USB-C ports** (one power, one data), power 5 V on USB-C or 5–12 V on VIN, headers pre-soldered | GPIO is 3.3 V, like the HW-394. Pin count and pinout not on the listing: confirm from the board/silkscreen when it arrives. A reviewer says it is **narrower than other S3 boards**, so other S3 bases don't fit it (and its bases don't fit other boards). The HW-394 pin plan (D25/D26 etc.) does not carry over: the S3 has different GPIO numbers. |
+| Bases for the board | 1 each | 2.54 mm expansion board, screw-terminal board, screwless terminal board | One of each type, for the three boards |
+| USB-C cable | 1 | | |
 
 ## Needed / not yet owned
 
